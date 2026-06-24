@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>บันทึกรายรับ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #2D6A4F;
+    --green-pale: #f0faf4;
+    --red: #c0392b;
+    --red-light: #fdecea;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-muted: #6b7280;
+    --bg: #f9fafb;
+    --white: #ffffff;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --itunes: #fc3c44;
+    --itunes-pale: #fff0f0;
+    --xbox: #107c10;
+    --xbox-pale: #f0fff0;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; }
+  .shell { width: 100%; max-width: 900px; min-height: 100vh; background: var(--white); display: flex; flex-direction: column; box-shadow: 0 0 0 1px var(--border); }
+  .header { padding: 1.25rem 1.25rem 0; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .sync-bar { display: flex; align-items: center; gap: 8px; padding: 8px 1.25rem; background: var(--green-pale); border-bottom: 1px solid #c3e6d5; font-size: 12px; color: var(--green); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .sync-dot.syncing { animation: pulse 1s infinite; background: #f59e0b; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .tabs { display: flex; margin: 1rem 0 0; border-bottom: 1.5px solid var(--border); padding: 0 1.25rem; }
+  .tab { flex: 1; padding: 10px 0 12px; font-size: 13px; font-weight: 600; color: var(--text-muted); background: none; border: none; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: color .15s, border-color .15s; }
+  .tab.active { color: var(--green); border-bottom-color: var(--green); }
+  .page { display: none; flex-direction: column; flex: 1; padding: 1.25rem; gap: 1rem; }
+  .page.active { display: flex; }
+
+  /* Rate settings */
+  .rate-section { display: flex; flex-direction: column; gap: 8px; }
+  .rate-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border-color .15s, background .15s; user-select: none; }
+  .rate-card.itunes-active { border-color: var(--itunes); background: var(--itunes-pale); }
+  .rate-card.xbox-active { border-color: var(--xbox); background: var(--xbox-pale); }
+  .rate-check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; transition: all .15s; background: var(--white); }
+  .rate-card.itunes-active .rate-check { background: var(--itunes); border-color: var(--itunes); }
+  .rate-card.xbox-active .rate-check { background: var(--xbox); border-color: var(--xbox); }
+  .rate-icon { font-size: 20px; flex-shrink: 0; }
+  .rate-info { flex: 1; }
+  .rate-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .rate-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .rate-input-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .rate-input { width: 80px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 600; text-align: right; outline: none; color: var(--text); background: var(--white); }
+  .rate-input:focus { border-color: var(--green); }
+  .rate-unit { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+  /* Input card */
+  .input-card { background: #f3f4f6; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem 1.25rem 1.25rem; }
+  .input-label { text-align: center; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .amount-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 16px; }
+  .baht-sign { font-size: 28px; font-weight: 300; color: var(--text-muted); }
+  #inp-amt { font-size: 44px; font-weight: 700; border: none; background: transparent; color: var(--text); outline: none; width: 200px; text-align: center; -moz-appearance: textfield; letter-spacing: -1px; }
+  #inp-amt::-webkit-outer-spin-button, #inp-amt::-webkit-inner-spin-button { -webkit-appearance: none; }
+  #inp-amt::placeholder { color: #d1d5db; }
+  .sep { width: 40px; height: 1px; background: var(--border); margin: 0 auto 16px; }
+  .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .text-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; color: var(--text); background: var(--white); outline: none; }
+  .text-input:focus { border-color: var(--green); }
+  .text-input::placeholder { color: #d1d5db; }
+  .btn-save { width: 100%; padding: 14px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Page 1 */
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stat-box { background: #f3f4f6; border-radius: var(--radius-sm); padding: 12px; }
+  .stat-box .s-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-box .s-val { font-size: 16px; font-weight: 700; color: var(--text); }
+  .stat-box.accent .s-val { color: var(--green); }
+  .rate-summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rate-summary-box { border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .rate-summary-box.itunes { background: var(--itunes-pale); border: 1px solid #fca5a5; }
+  .rate-summary-box.xbox { background: var(--xbox-pale); border: 1px solid #86efac; }
+  .rs-icon { font-size: 22px; }
+  .rs-info .rs-name { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+  .rs-info .rs-val { font-size: 16px; font-weight: 700; }
+  .rs-info .rs-val.itunes { color: var(--itunes); }
+  .rs-info .rs-val.xbox { color: var(--xbox); }
+  .rs-info .rs-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .btn-refresh { font-size: 13px; color: var(--green); background: none; border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; padding: 9px 14px; font-weight: 600; }
+  .list-head { display: flex; align-items: center; justify-content: space-between; }
+  .list-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .day-block { margin-bottom: 8px; }
+  .day-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--green-pale); border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; }
+  .day-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--green); }
+  .day-count { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+  .day-total { font-size: 14px; font-weight: 700; color: var(--green); }
+  .day-body { overflow: hidden; max-height: 2000px; transition: max-height .25s ease; background: var(--white); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 0 12px; }
+  .day-body.collapsed { max-height: 0; padding: 0 12px; border: none; }
+  .entry { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .entry:last-child { border-bottom: none; }
+  .entry-num { width: 22px; height: 22px; border-radius: 50%; background: #f3f4f6; color: var(--text-muted); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-amt { font-size: 15px; font-weight: 700; color: var(--text); }
+  .entry-badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 100px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .badge-itunes { background: var(--itunes-pale); color: var(--itunes); }
+  .badge-xbox { background: var(--xbox-pale); color: var(--xbox); }
+  .entry-note { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .entry-time { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .entry-btns { display: flex; gap: 4px; }
+  .icon-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .icon-btn.del:hover { background: var(--red-light); }
+
+  /* Page 2 Table */
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .table-info { font-size: 13px; color: var(--text-muted); }
+  .btn-export { padding: 10px 18px; background: #1d6f42; color: white; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+  thead { background: #1d6f42; color: white; }
+  thead th { padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; }
+  thead th.num { text-align: center; width: 44px; }
+  thead th.right { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f9fafb; }
+  tbody tr.day-sum { background: var(--green-pale); font-weight: 600; }
+  tbody tr.grand-total { background: #1d6f42; color: white; font-weight: 700; }
+  tbody td { padding: 9px 12px; }
+  tbody td.num { text-align: center; color: var(--text-muted); font-size: 12px; }
+  tbody td.right { text-align: right; font-weight: 600; color: var(--green); }
+  tbody td.right-white { text-align: right; font-weight: 700; }
+  tbody td.muted { color: var(--text-muted); font-size: 12px; }
+  tbody tr.day-sum td { color: var(--green); }
+  .empty-table { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 14px; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem; }
+  .overlay.open { display: flex; }
+  .modal-box { background: var(--white); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { width: 28px; height: 28px; border: none; background: none; cursor: pointer; font-size: 18px; color: var(--text-muted); border-radius: 6px; }
+  .modal-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; color: var(--text); outline: none; }
+  .modal-input:focus { border-color: var(--green); }
+  .modal-input.big { font-size: 24px; font-weight: 700; text-align: center; -moz-appearance: textfield; }
+  .modal-input.big::-webkit-outer-spin-button, .modal-input.big::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .modal-btns { display: flex; gap: 8px; margin-top: 6px; }
+  .btn-cancel { flex: 1; padding: 11px; border: 1px solid var(--border); background: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  .btn-confirm { flex: 1; padding: 11px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px); background: #1f2937; color: white; padding: 10px 20px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 200; transition: transform .3s cubic-bezier(.34,1.56,.64,1); white-space: nowrap; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+  .divider { height: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <h1>💰 บันทึกรายรับ</h1>
+    <p>ซิงค์กับ Google Sheets อัตโนมัติ</p>
+  </div>
+  <div class="sync-bar">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-status">เชื่อมต่อ Google Sheets แล้ว</span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab0" onclick="switchTab(0)">➕ บันทึกเงิน</button>
+    <button class="tab" id="tab1" onclick="switchTab(1)">📋 รายการ</button>
+    <button class="tab" id="tab2" onclick="switchTab(2)">📊 ตารางสรุป</button>
+  </div>
+
+  <!-- Page 0: บันทึก -->
+  <div class="page active" id="page0">
+
+    <!-- ตั้งเรท -->
+    <div class="rate-section">
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);">⚙️ เรทต้นทุน (บันทึกไว้อ้างอิง)</div>
+
+      <!-- iTunes -->
+      <div class="rate-card" id="itunes-card" onclick="togglePlatform('itunes')">
+        <div class="rate-check" id="itunes-check">✓</div>
+        <div class="rate-icon">🎵</div>
+        <div class="rate-info">
+          <div class="rate-name">iTunes</div>
+          <div class="rate-sub">ราคาต้นทุนต่อบัตร</div>
+        </div>
+        <div class="rate-input-wrap" onclick="event.stopPropagation()">
+          <input class="rate-input" id="itunes-rate" type="number" inputmode="decimal" placeholder="0" min="0" />
+          <span class="rate-unit">บาท</span>
+        </div>
+      </div>
+
+      <!-- Xbox -->
+      <div class="rate-card" id="xbox-card" onclick="togglePlatform('xbox')">
+        <div class="rate-check" id="xbox-check">✓</div>
+        <div class="rate-icon">🎮</div>
+        <div class="rate-info">
+          <div class="rate-name">Xbox</div>
+          <div class="rate-sub">ราคาต้นทุนต่อบัตร</div>
+        </div>
+        <div class="rate-input-wrap" onclick="event.stopPropagation()">
+          <input class="rate-input" id="xbox-rate" type="number" inputmode="decimal" placeholder="0" min="0" />
+          <span class="rate-unit">บาท</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- บันทึกยอด -->
+    <div class="input-card">
+      <div class="input-label">จำนวนเงิน</div>
+      <div class="amount-wrap">
+        <span class="baht-sign">฿</span>
+        <input id="inp-amt" type="number" inputmode="decimal" placeholder="0" />
+      </div>
+      <div class="sep"></div>
+      <div class="field-label">หมายเหตุ (ไม่บังคับ)</div>
+      <input class="text-input" id="inp-note" type="text" placeholder="เช่น ค่าอาหาร, ค่าน้ำมัน..." maxlength="60" />
+    </div>
+    <button class="btn-save" id="btn-add" onclick="addEntry()">✓ บันทึกรายการ</button>
+  </div>
+
+  <!-- Page 1: รายการ -->
+  <div class="page" id="page1">
+    <div class="stats">
+      <div class="stat-box accent">
+        <div class="s-label">ยอดรวมทั้งหมด</div>
+        <div class="s-val" id="s-total">฿0</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-label">ยอดวันนี้</div>
+        <div class="s-val" id="s-today">฿0</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-label">รายการทั้งหมด</div>
+        <div class="s-val" id="s-count">0</div>
+      </div>
+    </div>
+
+    <!-- เรทสรุป -->
+    <div class="rate-summary-row">
+      <div class="rate-summary-box itunes">
+        <div class="rs-icon">🎵</div>
+        <div class="rs-info">
+          <div class="rs-name">เรท iTunes</div>
+          <div class="rs-val itunes" id="rs-itunes">-</div>
+          <div class="rs-sub" id="rs-itunes-on">-</div>
+        </div>
+      </div>
+      <div class="rate-summary-box xbox">
+        <div class="rs-icon">🎮</div>
+        <div class="rs-info">
+          <div class="rs-name">เรท Xbox</div>
+          <div class="rs-val xbox" id="rs-xbox">-</div>
+          <div class="rs-sub" id="rs-xbox-on">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="list-head">
+      <div class="list-title">รายการแยกตามวัน</div>
+      <button class="btn-refresh" onclick="loadFromSheet()">🔄 รีเฟรช</button>
+    </div>
+    <div id="day-list"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+
+  <!-- Page 2: ตารางสรุป -->
+  <div class="page" id="page2">
+    <div class="table-toolbar">
+      <div class="table-info" id="table-info">รายการทั้งหมด</div>
+      <button class="btn-export" onclick="exportExcel()">📥 Export Excel</button>
+    </div>
+
+    <!-- เรทสรุปในหน้าตาราง -->
+    <div class="rate-summary-row">
+      <div class="rate-summary-box itunes">
+        <div class="rs-icon">🎵</div>
+        <div class="rs-info">
+          <div class="rs-name">เรท iTunes</div>
+          <div class="rs-val itunes" id="rs2-itunes">-</div>
+          <div class="rs-sub" id="rs2-itunes-on">-</div>
+        </div>
+      </div>
+      <div class="rate-summary-box xbox">
+        <div class="rs-icon">🎮</div>
+        <div class="rs-info">
+          <div class="rs-name">เรท Xbox</div>
+          <div class="rs-val xbox" id="rs2-xbox">-</div>
+          <div class="rs-sub" id="rs2-xbox-on">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="main-table">
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th>วันที่</th>
+            <th class="right">ยอด (บาท)</th>
+            <th>เวลา</th>
+            <th>ประเภท</th>
+            <th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="6" class="empty-table">⏳ กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal แก้ไข -->
+<div class="overlay" id="overlay">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div class="modal-title">✏️ แก้ไขรายการ</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">จำนวนเงิน (บาท)</div>
+      <input class="modal-input big" id="m-amt" type="number" inputmode="decimal" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">หมายเหตุ</div>
+      <input class="modal-input" id="m-note" type="text" placeholder="หมายเหตุ..." maxlength="60" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-confirm" onclick="saveEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxPTNK-bRIIcPJyj5cCgJ9H6-F1UHWJz4qQ7K8fzK2yygapVgjBcS72VAtvP14mkyxy/exec';
+  const LS_ITUNES = 'rate_itunes';
+  const LS_XBOX   = 'rate_xbox';
+  const LS_ITUNES_ON = 'rate_itunes_on';
+  const LS_XBOX_ON   = 'rate_xbox_on';
+
+  let entries = [];
+  let editId = null;
+
+  // โหลดเรทจาก localStorage
+  function loadRates() {
+    const ir = localStorage.getItem(LS_ITUNES) || '';
+    const xr = localStorage.getItem(LS_XBOX) || '';
+    const ion = localStorage.getItem(LS_ITUNES_ON) !== 'false';
+    const xon = localStorage.getItem(LS_XBOX_ON) !== 'false';
+    document.getElementById('itunes-rate').value = ir;
+    document.getElementById('xbox-rate').value = xr;
+    applyCardStyle('itunes', ion);
+    applyCardStyle('xbox', xon);
+  }
+
+  function saveRates() {
+    localStorage.setItem(LS_ITUNES, document.getElementById('itunes-rate').value);
+    localStorage.setItem(LS_XBOX, document.getElementById('xbox-rate').value);
+  }
+
+  function applyCardStyle(platform, on) {
+    const card = document.getElementById(platform + '-card');
+    const check = document.getElementById(platform + '-check');
+    card.className = 'rate-card' + (on ? (' ' + platform + '-active') : '');
+    check.textContent = on ? '✓' : '';
+    localStorage.setItem(platform === 'itunes' ? LS_ITUNES_ON : LS_XBOX_ON, on);
+  }
+
+  function togglePlatform(platform) {
+    const key = platform === 'itunes' ? LS_ITUNES_ON : LS_XBOX_ON;
+    const cur = localStorage.getItem(key) !== 'false';
+    applyCardStyle(platform, !cur);
+  }
+
+  function getRateSummary() {
+    const itunesOn = localStorage.getItem(LS_ITUNES_ON) !== 'false';
+    const xboxOn   = localStorage.getItem(LS_XBOX_ON) !== 'false';
+    const ir = parseFloat(localStorage.getItem(LS_ITUNES)) || 0;
+    const xr = parseFloat(localStorage.getItem(LS_XBOX)) || 0;
+    return { itunesOn, xboxOn, ir, xr };
+  }
+
+  function renderRateSummary() {
+    const { itunesOn, xboxOn, ir, xr } = getRateSummary();
+    const fmtRate = (n) => n > 0 ? '฿' + n.toLocaleString('th-TH', {minimumFractionDigits:2}) : 'ยังไม่ได้ตั้ง';
+
+    ['rs-itunes','rs2-itunes'].forEach(id => {
+      document.getElementById(id).textContent = fmtRate(ir);
+    });
+    ['rs-xbox','rs2-xbox'].forEach(id => {
+      document.getElementById(id).textContent = fmtRate(xr);
+    });
+    ['rs-itunes-on','rs2-itunes-on'].forEach(id => {
+      document.getElementById(id).textContent = itunesOn ? '✅ เปิดใช้งาน' : '⭕ ปิดอยู่';
+    });
+    ['rs-xbox-on','rs2-xbox-on'].forEach(id => {
+      document.getElementById(id).textContent = xboxOn ? '✅ เปิดใช้งาน' : '⭕ ปิดอยู่';
+    });
+  }
+
+  // auto-save เรทเมื่อพิมพ์
+  document.getElementById('itunes-rate').addEventListener('input', saveRates);
+  document.getElementById('xbox-rate').addEventListener('input', saveRates);
+
+  function uid() { return Date.now() + '-' + Math.random().toString(36).slice(2, 7); }
+  function fmt(n) { return '฿' + parseFloat(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtNum(n) { return parseFloat(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function dayKey(d) { return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+  function dayFull(d) { return new Date(d).toLocaleDateString('th-TH', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }); }
+  function timeStr(d) { return new Date(d).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); }
+  function todayKey() { return dayKey(new Date()); }
+
+  function getPlatformTag() {
+    const itunesOn = localStorage.getItem(LS_ITUNES_ON) !== 'false';
+    const xboxOn   = localStorage.getItem(LS_XBOX_ON) !== 'false';
+    if (itunesOn && xboxOn) return 'iTunes+Xbox';
+    if (itunesOn) return 'iTunes';
+    if (xboxOn) return 'Xbox';
+    return '';
+  }
+
+  function platformBadge(tag) {
+    if (!tag) return '';
+    const parts = tag.split('+');
+    return parts.map(p => {
+      if (p === 'iTunes') return '<span class="entry-badge badge-itunes">🎵 iTunes</span>';
+      if (p === 'Xbox') return '<span class="entry-badge badge-xbox">🎮 Xbox</span>';
+      return '';
+    }).join('');
+  }
+
+  function setSyncStatus(state, msg) {
+    const dot = document.getElementById('sync-dot');
+    dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+    document.getElementById('sync-status').textContent = msg;
+  }
+
+  async function callSheet(data) {
+    setSyncStatus('syncing', 'กำลังซิงค์...');
+    try {
+      const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(data) });
+      const json = await res.json();
+      setSyncStatus('ok', 'ซิงค์กับ Google Sheets แล้ว ✓');
+      return json;
+    } catch(e) {
+      setSyncStatus('error', 'ซิงค์ไม่ได้ ตรวจสอบอินเทอร์เน็ต');
+      throw e;
+    }
+  }
+
+  async function loadFromSheet() {
+    setSyncStatus('syncing', 'กำลังโหลดข้อมูล...');
+    document.getElementById('day-list').innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+    document.getElementById('table-body').innerHTML = '<tr><td colspan="6" class="empty-table">⏳ กำลังโหลด...</td></tr>';
+    try {
+      const res = await fetch(SCRIPT_URL);
+      const json = await res.json();
+      if (json.ok && json.entries) {
+        entries = json.entries.filter(e => e.id && e.amt).map(e => ({
+          id: e.id, amt: parseFloat(e.amt), note: e.note || '', time: e.time, platform: e.platform || ''
+        }));
+        entries.sort((a, b) => new Date(b.time) - new Date(a.time));
+      }
+      setSyncStatus('ok', 'ซิงค์กับ Google Sheets แล้ว ✓');
+      renderList();
+      renderTable();
+      renderRateSummary();
+    } catch(e) {
+      setSyncStatus('error', 'โหลดไม่ได้ ตรวจสอบอินเทอร์เน็ต');
+      document.getElementById('day-list').innerHTML = '<div class="loading">⚠️ โหลดไม่ได้ กด รีเฟรช เพื่อลองใหม่</div>';
+    }
+  }
+
+  function switchTab(n) {
+    [0,1,2].forEach(i => {
+      document.getElementById('tab'+i).classList.toggle('active', i===n);
+      document.getElementById('page'+i).classList.toggle('active', i===n);
+    });
+    if (n === 1 || n === 2) { loadFromSheet(); }
+    if (n === 1 || n === 2) renderRateSummary();
+  }
+
+  async function addEntry() {
+    const v = parseFloat(document.getElementById('inp-amt').value);
+    if (!v || isNaN(v) || v <= 0) {
+      const el = document.getElementById('inp-amt');
+      el.style.color = '#c0392b';
+      setTimeout(() => el.style.color = '', 700);
+      return;
+    }
+    const platform = getPlatformTag();
+    const entry = { id: uid(), amt: v, note: document.getElementById('inp-note').value.trim(), time: new Date().toISOString(), platform };
+    const btn = document.getElementById('btn-add');
+    btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+    try {
+      await callSheet({ action: 'add', ...entry });
+      document.getElementById('inp-amt').value = '';
+      document.getElementById('inp-note').value = '';
+      showToast('บันทึกแล้ว ' + fmt(v) + (platform ? ' · ' + platform : ''));
+      switchTab(1);
+    } catch(e) { showToast('❌ บันทึกไม่ได้ ลองใหม่'); }
+    btn.disabled = false; btn.textContent = '✓ บันทึกรายการ';
+  }
+
+  function renderList() {
+    const total = entries.reduce((s, e) => s + e.amt, 0);
+    const todayTotal = entries.filter(e => dayKey(e.time) === todayKey()).reduce((s, e) => s + e.amt, 0);
+    document.getElementById('s-total').textContent = fmt(total);
+    document.getElementById('s-today').textContent = fmt(todayTotal);
+    document.getElementById('s-count').textContent = entries.length + ' รายการ';
+
+    const container = document.getElementById('day-list');
+    container.innerHTML = '';
+    if (!entries.length) { container.innerHTML = '<div class="loading">📭 ยังไม่มีรายการ</div>'; return; }
+
+    const groups = {};
+    entries.forEach(e => { const k = dayFull(e.time); if (!groups[k]) groups[k] = []; groups[k].push(e); });
+    let isFirst = true;
+    Object.keys(groups).forEach(day => {
+      const items = groups[day];
+      const dayTotal = items.reduce((s, e) => s + e.amt, 0);
+      const bodyId = 'body-' + day.replace(/[^a-z0-9]/gi, '-');
+      const bodyClass = isFirst ? 'day-body' : 'day-body collapsed';
+      isFirst = false;
+      const block = document.createElement('div');
+      block.className = 'day-block';
+      block.innerHTML = `
+        <div class="day-head" onclick="toggleDay('${bodyId}')">
+          <div class="day-left">📅 ${day} <span class="day-count">(${items.length} รายการ)</span></div>
+          <div class="day-total">${fmt(dayTotal)}</div>
+        </div>
+        <div class="${bodyClass}" id="${bodyId}">
+          ${items.map((e, li) => `
+            <div class="entry">
+              <div class="entry-num">${li+1}</div>
+              <div class="entry-info">
+                <div class="entry-amt">${fmt(e.amt)}${platformBadge(e.platform)}</div>
+                ${e.note ? `<div class="entry-note">${e.note}</div>` : ''}
+                <div class="entry-time">🕐 ${timeStr(e.time)}</div>
+              </div>
+              <div class="entry-btns">
+                <button class="icon-btn" onclick="openEdit('${e.id}')">✏️</button>
+                <button class="icon-btn del" onclick="delEntry('${e.id}')">🗑</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+      container.appendChild(block);
+    });
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('table-body');
+    tbody.innerHTML = '';
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-table">📭 ยังไม่มีรายการ</td></tr>';
+      document.getElementById('table-info').textContent = 'ยังไม่มีรายการ';
+      return;
+    }
+    const groups = {};
+    entries.forEach(e => { const k = dayKey(e.time); if (!groups[k]) groups[k] = []; groups[k].push(e); });
+    let no = 1;
+    Object.keys(groups).forEach(day => {
+      const items = groups[day];
+      const dayTotal = items.reduce((s, e) => s + e.amt, 0);
+      items.forEach(e => {
+        const tr = document.createElement('tr');
+        const pTag = e.platform ? (e.platform.includes('iTunes') ? '🎵 iTunes' : '') + (e.platform.includes('Xbox') ? ' 🎮 Xbox' : '') : '-';
+        tr.innerHTML = `
+          <td class="num">${no++}</td>
+          <td>${dayKey(e.time)}</td>
+          <td class="right">${fmtNum(e.amt)}</td>
+          <td class="muted">${timeStr(e.time)}</td>
+          <td class="muted">${pTag.trim() || '-'}</td>
+          <td class="muted">${e.note || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      const trSum = document.createElement('tr');
+      trSum.className = 'day-sum';
+      trSum.innerHTML = `<td></td><td>รวม ${day}</td><td class="right">${fmtNum(dayTotal)}</td><td></td><td></td><td></td>`;
+      tbody.appendChild(trSum);
+    });
+    const trTotal = document.createElement('tr');
+    trTotal.className = 'grand-total';
+    trTotal.innerHTML = `<td></td><td>ยอดรวมทั้งหมด</td><td class="right-white">${fmtNum(entries.reduce((s,e)=>s+e.amt,0))}</td><td></td><td></td><td></td>`;
+    tbody.appendChild(trTotal);
+    document.getElementById('table-info').textContent = 'ทั้งหมด ' + entries.length + ' รายการ';
+  }
+
+  function toggleDay(id) { document.getElementById(id).classList.toggle('collapsed'); }
+
+  async function delEntry(id) {
+    if (!confirm('ลบรายการนี้?')) return;
+    try { await callSheet({ action: 'delete', id }); showToast('ลบแล้ว'); loadFromSheet(); }
+    catch(e) { showToast('❌ ลบไม่ได้'); }
+  }
+
+  function openEdit(id) {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    editId = id;
+    document.getElementById('m-amt').value = entry.amt;
+    document.getElementById('m-note').value = entry.note || '';
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('overlay').classList.remove('open'); editId = null; }
+
+  async function saveEdit() {
+    const v = parseFloat(document.getElementById('m-amt').value);
+    if (!v || isNaN(v) || v <= 0) return;
+    try {
+      await callSheet({ action: 'update', id: editId, amt: v, note: document.getElementById('m-note').value.trim() });
+      closeModal(); showToast('แก้ไขแล้ว'); loadFromSheet();
+    } catch(e) { showToast('❌ แก้ไขไม่ได้'); }
+  }
+
+  function exportExcel() {
+    if (!entries.length) { showToast('ยังไม่มีข้อมูล'); return; }
+    const { itunesOn, xboxOn, ir, xr } = getRateSummary();
+    const fmtRate = (n) => n > 0 ? fmtNum(n) + ' บาท' : 'ยังไม่ได้ตั้ง';
+    const BOM = '\uFEFF';
+    const rows = [];
+    rows.push(['เรท iTunes', fmtRate(ir), 'สถานะ', itunesOn ? 'เปิด' : 'ปิด']);
+    rows.push(['เรท Xbox',   fmtRate(xr), 'สถานะ', xboxOn   ? 'เปิด' : 'ปิด']);
+    rows.push([]);
+    rows.push(['ลำดับ','วันที่','ยอด (บาท)','เวลา','ประเภท','หมายเหตุ']);
+    const groups = {};
+    entries.forEach(e => { const k = dayKey(e.time); if (!groups[k]) groups[k] = []; groups[k].push(e); });
+    let no = 1;
+    Object.keys(groups).forEach(day => {
+      const items = groups[day];
+      items.forEach(e => {
+        const pTag = e.platform || '-';
+        rows.push([no++, dayKey(e.time), fmtNum(e.amt), timeStr(e.time), pTag, e.note||'']);
+      });
+      rows.push(['','รวม '+day, fmtNum(items.reduce((s,e)=>s+e.amt,0)),'','','']);
+      rows.push([]);
+    });
+    rows.push(['','ยอดรวมทั้งหมด', fmtNum(entries.reduce((s,e)=>s+e.amt,0)),'','','']);
+    const csv = BOM + rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
+    a.href = url; a.download = 'บันทึกรายรับ_'+today+'.csv'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('📥 ดาวน์โหลดแล้ว เปิดด้วย Excel ได้เลย');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  document.getElementById('inp-amt').addEventListener('keydown', e => { if (e.key === 'Enter') addEntry(); });
+  document.getElementById('m-amt').addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(); });
+  document.getElementById('overlay').addEventListener('click', e => { if (e.target === document.getElementById('overlay')) closeModal(); });
+
+  loadRates();
+</script>
+</body>
+</html>
