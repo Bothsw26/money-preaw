@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>บันทึกรายรับ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #2D6A4F;
+    --green-light: #e8f5ee;
+    --green-pale: #f0faf4;
+    --red: #c0392b;
+    --red-light: #fdecea;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-muted: #6b7280;
+    --bg: #f9fafb;
+    --white: #ffffff;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; }
+  .shell { width: 100%; max-width: 480px; min-height: 100vh; background: var(--white); display: flex; flex-direction: column; box-shadow: 0 0 0 1px var(--border); }
+  .header { padding: 1.25rem 1.25rem 0; }
+  .header h1 { font-size: 20px; font-weight: 700; color: var(--text); }
+  .header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .sync-bar { display: flex; align-items: center; gap: 8px; padding: 8px 1.25rem; background: var(--green-pale); border-bottom: 1px solid #c3e6d5; font-size: 12px; color: var(--green); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .sync-dot.syncing { animation: pulse 1s infinite; background: #f59e0b; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .tabs { display: flex; margin: 1rem 0 0; border-bottom: 1.5px solid var(--border); padding: 0 1.25rem; }
+  .tab { flex: 1; padding: 10px 0 12px; font-size: 14px; font-weight: 600; color: var(--text-muted); background: none; border: none; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: color .15s, border-color .15s; }
+  .tab.active { color: var(--green); border-bottom-color: var(--green); }
+  .page { display: none; flex-direction: column; flex: 1; padding: 1.25rem; gap: 1rem; }
+  .page.active { display: flex; }
+  .input-card { background: #f3f4f6; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem 1.25rem 1.25rem; }
+  .input-label { text-align: center; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .amount-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 16px; }
+  .baht-sign { font-size: 28px; font-weight: 300; color: var(--text-muted); }
+  #inp-amt { font-size: 44px; font-weight: 700; border: none; background: transparent; color: var(--text); outline: none; width: 200px; text-align: center; -moz-appearance: textfield; letter-spacing: -1px; }
+  #inp-amt::-webkit-outer-spin-button, #inp-amt::-webkit-inner-spin-button { -webkit-appearance: none; }
+  #inp-amt::placeholder { color: #d1d5db; }
+  .sep { width: 40px; height: 1px; background: var(--border); margin: 0 auto 16px; }
+  .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .text-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; color: var(--text); background: var(--white); outline: none; transition: border-color .15s; }
+  .text-input:focus { border-color: var(--green); }
+  .text-input::placeholder { color: #d1d5db; }
+  .btn-save { width: 100%; padding: 14px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity .15s; }
+  .btn-save:active { opacity: .88; }
+  .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stat-box { background: #f3f4f6; border-radius: var(--radius-sm); padding: 12px; }
+  .stat-box .s-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-box .s-val { font-size: 16px; font-weight: 700; color: var(--text); }
+  .stat-box.accent .s-val { color: var(--green); }
+  .list-head { display: flex; align-items: center; justify-content: space-between; }
+  .list-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .btn-refresh { font-size: 12px; color: var(--green); background: none; border: 1px solid #c3e6d5; border-radius: 6px; cursor: pointer; padding: 4px 10px; }
+  .day-block { margin-bottom: 8px; }
+  .day-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--green-pale); border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; user-select: none; }
+  .day-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--green); }
+  .day-count { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+  .day-total { font-size: 14px; font-weight: 700; color: var(--green); }
+  .day-body { overflow: hidden; max-height: 2000px; transition: max-height .25s ease; background: var(--white); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 0 12px; }
+  .day-body.collapsed { max-height: 0; padding: 0 12px; border: none; }
+  .entry { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .entry:last-child { border-bottom: none; }
+  .entry-num { width: 22px; height: 22px; border-radius: 50%; background: #f3f4f6; color: var(--text-muted); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-amt { font-size: 15px; font-weight: 700; color: var(--text); }
+  .entry-note { font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-time { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .entry-btns { display: flex; gap: 4px; }
+  .icon-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; transition: background .15s, color .15s; }
+  .icon-btn:hover { background: #f3f4f6; }
+  .icon-btn.del:hover { background: var(--red-light); color: var(--red); }
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 14px; }
+  .empty-state div { font-size: 36px; margin-bottom: 10px; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem; }
+  .overlay.open { display: flex; }
+  .modal-box { background: var(--white); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { width: 28px; height: 28px; border: none; background: none; cursor: pointer; font-size: 18px; color: var(--text-muted); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: #f3f4f6; }
+  .modal-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; color: var(--text); outline: none; transition: border-color .15s; }
+  .modal-input:focus { border-color: var(--green); }
+  .modal-input.big { font-size: 24px; font-weight: 700; text-align: center; -moz-appearance: textfield; }
+  .modal-input.big::-webkit-outer-spin-button, .modal-input.big::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .modal-btns { display: flex; gap: 8px; margin-top: 6px; }
+  .btn-cancel { flex: 1; padding: 11px; border: 1px solid var(--border); background: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  .btn-confirm { flex: 1; padding: 11px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px); background: #1f2937; color: white; padding: 10px 20px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 200; transition: transform .3s cubic-bezier(.34,1.56,.64,1); white-space: nowrap; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <h1>💰 บันทึกรายรับ</h1>
+    <p>ซิงค์กับ Google Sheets อัตโนมัติ</p>
+  </div>
+
+  <div class="sync-bar">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-status">เชื่อมต่อ Google Sheets แล้ว</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab0" onclick="switchTab(0)">➕ บันทึกเงิน</button>
+    <button class="tab" id="tab1" onclick="switchTab(1)">📋 รายการและสรุป</button>
+  </div>
+
+  <div class="page active" id="page0">
+    <div class="input-card">
+      <div class="input-label">จำนวนเงิน</div>
+      <div class="amount-wrap">
+        <span class="baht-sign">฿</span>
+        <input id="inp-amt" type="number" inputmode="decimal" placeholder="0" />
+      </div>
+      <div class="sep"></div>
+      <div class="field-label">หมายเหตุ (ไม่บังคับ)</div>
+      <input class="text-input" id="inp-note" type="text" placeholder="เช่น ค่าอาหาร, ค่าน้ำมัน..." maxlength="60" />
+    </div>
+    <button class="btn-save" id="btn-add" onclick="addEntry()">✓ บันทึกรายการ</button>
+  </div>
+
+  <div class="page" id="page1">
+    <div class="stats">
+      <div class="stat-box accent">
+        <div class="s-label">ยอดรวมทั้งหมด</div>
+        <div class="s-val" id="s-total">฿0</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-label">ยอดวันนี้</div>
+        <div class="s-val" id="s-today">฿0</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-label">รายการทั้งหมด</div>
+        <div class="s-val" id="s-count">0</div>
+      </div>
+    </div>
+    <div class="list-head">
+      <div class="list-title">รายการแยกตามวัน</div>
+      <button class="btn-refresh" onclick="loadFromSheet()">🔄 รีเฟรช</button>
+    </div>
+    <div id="day-list"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div class="modal-title">✏️ แก้ไขรายการ</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">จำนวนเงิน (บาท)</div>
+      <input class="modal-input big" id="m-amt" type="number" inputmode="decimal" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">หมายเหตุ</div>
+      <input class="modal-input" id="m-note" type="text" placeholder="หมายเหตุ..." maxlength="60" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-confirm" onclick="saveEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxPTNK-bRIIcPJyj5cCgJ9H6-F1UHWJz4qQ7K8fzK2yygapVgjBcS72VAtvP14mkyxy/exec';
+
+  let entries = [];
+  let editId = null;
+
+  function uid() {
+    return Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+  }
+
+  function fmt(n) {
+    return '฿' + parseFloat(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function dayKey(d) {
+    const date = new Date(d);
+    return date.toLocaleDateString('th-TH', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function timeStr(d) {
+    return new Date(d).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function todayKey() { return dayKey(new Date()); }
+
+  function setSyncStatus(state, msg) {
+    const dot = document.getElementById('sync-dot');
+    const status = document.getElementById('sync-status');
+    dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+    status.textContent = msg;
+  }
+
+  async function callSheet(data) {
+    setSyncStatus('syncing', 'กำลังซิงค์...');
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      setSyncStatus('ok', 'ซิงค์กับ Google Sheets แล้ว ✓');
+      return json;
+    } catch(e) {
+      setSyncStatus('error', 'ซิงค์ไม่ได้ ตรวจสอบอินเทอร์เน็ต');
+      throw e;
+    }
+  }
+
+  async function loadFromSheet() {
+    setSyncStatus('syncing', 'กำลังโหลดข้อมูล...');
+    document.getElementById('day-list').innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+    try {
+      const res = await fetch(SCRIPT_URL);
+      const json = await res.json();
+      if (json.ok && json.entries) {
+        entries = json.entries.filter(e => e.id && e.amt).map(e => ({
+          id: e.id,
+          amt: parseFloat(e.amt),
+          note: e.note || '',
+          time: e.time
+        }));
+        entries.sort((a, b) => new Date(b.time) - new Date(a.time));
+      }
+      setSyncStatus('ok', 'ซิงค์กับ Google Sheets แล้ว ✓');
+      render();
+    } catch(e) {
+      setSyncStatus('error', 'โหลดไม่ได้ ตรวจสอบอินเทอร์เน็ต');
+      document.getElementById('day-list').innerHTML = '<div class="empty-state"><div>⚠️</div>โหลดข้อมูลไม่ได้<br>ตรวจสอบอินเทอร์เน็ตแล้วกด รีเฟรช</div>';
+    }
+  }
+
+  function switchTab(n) {
+    document.getElementById('tab0').classList.toggle('active', n === 0);
+    document.getElementById('tab1').classList.toggle('active', n === 1);
+    document.getElementById('page0').classList.toggle('active', n === 0);
+    document.getElementById('page1').classList.toggle('active', n === 1);
+    if (n === 1) loadFromSheet();
+  }
+
+  async function addEntry() {
+    const v = parseFloat(document.getElementById('inp-amt').value);
+    if (!v || isNaN(v) || v <= 0) {
+      const el = document.getElementById('inp-amt');
+      el.style.color = '#c0392b';
+      setTimeout(() => el.style.color = '', 700);
+      return;
+    }
+    const entry = {
+      id: uid(),
+      amt: v,
+      note: document.getElementById('inp-note').value.trim(),
+      time: new Date().toISOString()
+    };
+    document.getElementById('btn-add').disabled = true;
+    document.getElementById('btn-add').textContent = '⏳ กำลังบันทึก...';
+    try {
+      await callSheet({ action: 'add', ...entry });
+      document.getElementById('inp-amt').value = '';
+      document.getElementById('inp-note').value = '';
+      showToast('บันทึกแล้ว ' + fmt(v));
+      switchTab(1);
+    } catch(e) {
+      showToast('❌ บันทึกไม่ได้ ลองใหม่อีกครั้ง');
+    }
+    document.getElementById('btn-add').disabled = false;
+    document.getElementById('btn-add').textContent = '✓ บันทึกรายการ';
+  }
+
+  function render() {
+    const total = entries.reduce((s, e) => s + e.amt, 0);
+    const todayEntries = entries.filter(e => dayKey(e.time) === todayKey());
+    const todayTotal = todayEntries.reduce((s, e) => s + e.amt, 0);
+    document.getElementById('s-total').textContent = fmt(total);
+    document.getElementById('s-today').textContent = fmt(todayTotal);
+    document.getElementById('s-count').textContent = entries.length + ' รายการ';
+
+    const container = document.getElementById('day-list');
+    container.innerHTML = '';
+
+    if (!entries.length) {
+      container.innerHTML = '<div class="empty-state"><div>📭</div>ยังไม่มีรายการ<br>กลับไปบันทึกที่แถบแรก</div>';
+      return;
+    }
+
+    const groups = {};
+    entries.forEach(e => {
+      const k = dayKey(e.time);
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(e);
+    });
+
+    let isFirst = true;
+    Object.keys(groups).forEach(day => {
+      const items = groups[day];
+      const dayTotal = items.reduce((s, e) => s + e.amt, 0);
+      const isToday = day === todayKey();
+      const bodyId = 'body-' + day.replace(/[^a-z0-9]/gi, '-');
+      const bodyClass = isFirst ? 'day-body' : 'day-body collapsed';
+      isFirst = false;
+
+      const block = document.createElement('div');
+      block.className = 'day-block';
+      block.innerHTML = `
+        <div class="day-head" onclick="toggleDay('${bodyId}')">
+          <div class="day-left">📅 ${isToday ? 'วันนี้' : day} <span class="day-count">(${items.length} รายการ)</span></div>
+          <div class="day-total">${fmt(dayTotal)}</div>
+        </div>
+        <div class="${bodyClass}" id="${bodyId}">
+          ${items.map((e, li) => `
+            <div class="entry">
+              <div class="entry-num">${li + 1}</div>
+              <div class="entry-info">
+                <div class="entry-amt">${fmt(e.amt)}</div>
+                ${e.note ? `<div class="entry-note">${e.note}</div>` : ''}
+                <div class="entry-time">🕐 ${timeStr(e.time)}</div>
+              </div>
+              <div class="entry-btns">
+                <button class="icon-btn" onclick="openEdit('${e.id}')">✏️</button>
+                <button class="icon-btn del" onclick="delEntry('${e.id}')">🗑</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      container.appendChild(block);
+    });
+  }
+
+  function toggleDay(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  async function delEntry(id) {
+    if (!confirm('ลบรายการนี้?')) return;
+    try {
+      await callSheet({ action: 'delete', id });
+      showToast('ลบแล้ว');
+      loadFromSheet();
+    } catch(e) {
+      showToast('❌ ลบไม่ได้ ลองใหม่อีกครั้ง');
+    }
+  }
+
+  function openEdit(id) {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    editId = id;
+    document.getElementById('m-amt').value = entry.amt;
+    document.getElementById('m-note').value = entry.note || '';
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('overlay').classList.remove('open');
+    editId = null;
+  }
+
+  async function saveEdit() {
+    const v = parseFloat(document.getElementById('m-amt').value);
+    if (!v || isNaN(v) || v <= 0) return;
+    try {
+      await callSheet({ action: 'update', id: editId, amt: v, note: document.getElementById('m-note').value.trim() });
+      closeModal();
+      showToast('แก้ไขแล้ว');
+      loadFromSheet();
+    } catch(e) {
+      showToast('❌ แก้ไขไม่ได้ ลองใหม่อีกครั้ง');
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  document.getElementById('inp-amt').addEventListener('keydown', e => { if (e.key === 'Enter') addEntry(); });
+  document.getElementById('m-amt').addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(); });
+  document.getElementById('overlay').addEventListener('click', e => { if (e.target === document.getElementById('overlay')) closeModal(); });
+</script>
+</body>
+</html>
