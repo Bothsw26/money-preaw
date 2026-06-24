@@ -1,0 +1,318 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{font-family:var(--font-sans);max-width:520px;margin:0 auto}
+.tabs{display:flex;border-bottom:1px solid var(--color-border-tertiary)}
+.tab{flex:1;padding:11px 0;font-size:14px;font-weight:500;color:var(--color-text-secondary);background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.tab.on{color:var(--color-text-primary);border-bottom-color:var(--color-text-primary)}
+.tab i{font-size:16px}
+.pg{display:none;padding:1.25rem;flex-direction:column;gap:1rem}
+.pg.on{display:flex}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1.25rem}
+.amount-field{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1rem 0}
+.lbl{font-size:12px;color:var(--color-text-secondary);letter-spacing:.5px}
+.big-in{width:100%;font-size:40px;font-weight:500;text-align:center;border:none;background:transparent;color:var(--color-text-primary);outline:none;-moz-appearance:textfield}
+.big-in::-webkit-outer-spin-button,.big-in::-webkit-inner-spin-button{-webkit-appearance:none}
+.big-in::placeholder{color:var(--color-border-secondary)}
+.hr{width:40px;height:1px;background:var(--color-border-tertiary)}
+.note-lbl{font-size:12px;color:var(--color-text-secondary);margin-bottom:5px}
+.note-in{width:100%;padding:9px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:14px;background:var(--color-background-primary);color:var(--color-text-primary);outline:none}
+.note-in:focus{border-color:var(--color-border-primary)}
+.note-in::placeholder{color:var(--color-border-primary)}
+.btn-add{width:100%;padding:13px;background:var(--color-text-primary);color:var(--color-background-primary);border:none;border-radius:var(--border-radius-md);font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-add:active{opacity:.85}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.875rem}
+.stat-lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+.stat-val{font-size:18px;font-weight:500;color:var(--color-text-primary)}
+.stat.hi .stat-val{color:var(--color-text-success)}
+.day-block{margin-bottom:.5rem}
+.day-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);cursor:pointer;border:0.5px solid var(--color-border-tertiary)}
+.day-title{font-size:13px;font-weight:500;color:var(--color-text-primary);display:flex;align-items:center;gap:6px}
+.day-title i{font-size:14px;color:var(--color-text-secondary)}
+.day-sum{font-size:14px;font-weight:500;color:var(--color-text-success)}
+.day-count{font-size:12px;color:var(--color-text-secondary)}
+.day-body{padding:0 4px;overflow:hidden;transition:max-height .25s ease}
+.entry-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.entry-row:last-child{border-bottom:none}
+.entry-num{width:24px;height:24px;border-radius:50%;background:var(--color-background-secondary);color:var(--color-text-secondary);font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.entry-body{flex:1;min-width:0}
+.entry-amt{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+.entry-note{font-size:12px;color:var(--color-text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry-time{font-size:11px;color:var(--color-text-tertiary);margin-top:2px;display:flex;align-items:center;gap:3px}
+.entry-time i{font-size:11px}
+.acts{display:flex;gap:4px;flex-shrink:0}
+.ic{width:28px;height:28px;border:0.5px solid var(--color-border-tertiary);background:none;border-radius:var(--border-radius-md);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);font-size:14px}
+.ic:hover{background:var(--color-background-secondary)}
+.ic.del:hover{color:var(--color-text-danger)}
+.empty{text-align:center;padding:2.5rem 1rem;color:var(--color-text-secondary);font-size:14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty i{font-size:32px;opacity:.35}
+.modal-bg{display:none;min-height:400px;background:rgba(0,0,0,.35);align-items:center;justify-content:center;padding:1rem;border-radius:var(--border-radius-lg);margin-bottom:1rem}
+.modal-bg.on{display:flex}
+.modal{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1.25rem;width:100%;max-width:360px}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.modal-title{font-size:15px;font-weight:500}
+.modal-x{background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:18px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:var(--border-radius-md)}
+.modal-x:hover{background:var(--color-background-secondary)}
+.m-lbl{font-size:12px;color:var(--color-text-secondary);margin-bottom:5px}
+.m-in{width:100%;padding:9px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:15px;color:var(--color-text-primary);background:var(--color-background-primary);outline:none;margin-bottom:.875rem}
+.m-in.big{font-size:22px;font-weight:500;text-align:center;-moz-appearance:textfield}
+.m-in.big::-webkit-outer-spin-button,.m-in.big::-webkit-inner-spin-button{-webkit-appearance:none}
+.m-in:focus{border-color:var(--color-border-primary)}
+.modal-btns{display:flex;gap:8px;margin-top:.5rem}
+.btn-sec{flex:1;padding:10px;border:0.5px solid var(--color-border-secondary);background:none;border-radius:var(--border-radius-md);cursor:pointer;color:var(--color-text-secondary);font-size:14px}
+.btn-pri{flex:1;padding:10px;background:var(--color-text-primary);color:var(--color-background-primary);border:none;border-radius:var(--border-radius-md);cursor:pointer;font-size:14px;font-weight:500}
+.toast{position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%) translateY(70px);background:var(--color-text-primary);color:var(--color-background-primary);padding:9px 18px;border-radius:100px;font-size:13px;font-weight:500;z-index:200;transition:transform .25s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
+.toast.on{transform:translateX(-50%) translateY(0)}
+.clear-btn{font-size:12px;color:var(--color-text-danger);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:var(--border-radius-md)}
+.clear-btn:hover{background:var(--color-background-danger)}
+.list-hdr{display:flex;align-items:center;justify-content:space-between}
+.list-lbl{font-size:13px;font-weight:500;color:var(--color-text-secondary)}
+</style>
+
+<h2 class="sr-only">แอปบันทึกรายรับ — บันทึกเงิน ดูรายการ และสรุปยอดรายวัน</h2>
+
+<div class="app">
+  <div class="tabs">
+    <button class="tab on" onclick="gt(0)"><i class="ti ti-circle-plus" aria-hidden="true"></i> บันทึกเงิน</button>
+    <button class="tab" onclick="gt(1)"><i class="ti ti-calendar-stats" aria-hidden="true"></i> รายการและสรุป</button>
+  </div>
+
+  <div id="p0" class="pg on">
+    <div class="card">
+      <div class="amount-field">
+        <div class="lbl">จำนวนเงิน (บาท)</div>
+        <input class="big-in" id="inp-a" type="number" inputmode="decimal" placeholder="0" />
+        <div class="hr"></div>
+      </div>
+      <div class="note-lbl">หมายเหตุ (ไม่บังคับ)</div>
+      <input class="note-in" id="inp-n" type="text" placeholder="เช่น ค่าอาหาร, ค่าน้ำมัน..." maxlength="60" />
+    </div>
+    <button class="btn-add" onclick="add()">
+      <i class="ti ti-check" aria-hidden="true"></i> บันทึกรายการ
+    </button>
+  </div>
+
+  <div id="p1" class="pg">
+    <div class="stat-grid">
+      <div class="stat hi">
+        <div class="stat-lbl">ยอดรวมทั้งหมด</div>
+        <div class="stat-val" id="s-total">฿0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">ยอดวันนี้</div>
+        <div class="stat-val" id="s-today">฿0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">รายการทั้งหมด</div>
+        <div class="stat-val" id="s-count">0</div>
+      </div>
+    </div>
+    <div class="list-hdr">
+      <div class="list-lbl">รายการแยกตามวัน</div>
+      <button class="clear-btn" onclick="clearAll()"><i class="ti ti-trash" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> ล้างทั้งหมด</button>
+    </div>
+    <div id="day-list"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title"><i class="ti ti-edit" style="font-size:15px;vertical-align:-2px;margin-right:6px" aria-hidden="true"></i>แก้ไขรายการ</div>
+      <button class="modal-x" onclick="closeM()"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div class="m-lbl">จำนวนเงิน (บาท)</div>
+    <input class="m-in big" id="m-a" type="number" inputmode="decimal" />
+    <div class="m-lbl">หมายเหตุ</div>
+    <input class="m-in" id="m-n" type="text" placeholder="หมายเหตุ..." maxlength="60" />
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="closeM()">ยกเลิก</button>
+      <button class="btn-pri" onclick="saveE()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let entries = [];
+let editIdx = -1;
+const STORE_KEY = 'money_entries_v1';
+
+async function load() {
+  try {
+    const r = await window.storage.get(STORE_KEY);
+    if (r && r.value) {
+      const parsed = JSON.parse(r.value);
+      entries = parsed.map(e => ({ ...e, time: new Date(e.time) }));
+    }
+  } catch(e) {}
+}
+
+async function save() {
+  try {
+    await window.storage.set(STORE_KEY, JSON.stringify(entries.map(e => ({ ...e, time: e.time.toISOString() }))));
+  } catch(e) {}
+}
+
+function fmt(n) {
+  return '฿' + parseFloat(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function dayKey(d) {
+  return d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function timeStr(d) {
+  return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+}
+
+function todayKey() {
+  return dayKey(new Date());
+}
+
+function gt(n) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('on', i === n));
+  document.getElementById('p0').classList.toggle('on', n === 0);
+  document.getElementById('p1').classList.toggle('on', n === 1);
+  if (n === 1) render();
+}
+
+function add() {
+  const v = parseFloat(document.getElementById('inp-a').value);
+  if (!v || isNaN(v) || v <= 0) {
+    const el = document.getElementById('inp-a');
+    el.style.color = 'var(--color-text-danger)';
+    setTimeout(() => el.style.color = '', 700);
+    return;
+  }
+  entries.unshift({ amt: v, note: document.getElementById('inp-n').value.trim(), time: new Date() });
+  document.getElementById('inp-a').value = '';
+  document.getElementById('inp-n').value = '';
+  save();
+  toast('บันทึกแล้ว ' + fmt(v));
+  gt(1);
+}
+
+function render() {
+  const total = entries.reduce((s, e) => s + e.amt, 0);
+  const todayTotal = entries.filter(e => dayKey(e.time) === todayKey()).reduce((s, e) => s + e.amt, 0);
+  document.getElementById('s-total').textContent = fmt(total);
+  document.getElementById('s-today').textContent = fmt(todayTotal);
+  document.getElementById('s-count').textContent = entries.length + ' รายการ';
+
+  const container = document.getElementById('day-list');
+  container.innerHTML = '';
+
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty"><i class="ti ti-inbox" aria-hidden="true"></i><span>ยังไม่มีรายการ<br>กลับไปบันทึกที่แถบแรก</span></div>`;
+    return;
+  }
+
+  const groups = {};
+  entries.forEach((e, i) => {
+    const k = dayKey(e.time);
+    if (!groups[k]) groups[k] = [];
+    groups[k].push({ ...e, idx: i });
+  });
+
+  Object.keys(groups).forEach(day => {
+    const items = groups[day];
+    const dayTotal = items.reduce((s, e) => s + e.amt, 0);
+    const isToday = day === todayKey();
+    const blockId = 'day-' + day.replace(/\//g, '-');
+
+    const block = document.createElement('div');
+    block.className = 'day-block';
+    block.innerHTML = `
+      <div class="day-header" onclick="toggleDay('${blockId}')">
+        <div class="day-title">
+          <i class="ti ti-calendar" aria-hidden="true"></i>
+          ${isToday ? 'วันนี้' : day}
+          <span class="day-count">(${items.length} รายการ)</span>
+        </div>
+        <div class="day-sum">${fmt(dayTotal)}</div>
+      </div>
+      <div class="day-body" id="${blockId}" style="max-height:1000px">
+        ${items.map((e, li) => `
+          <div class="entry-row">
+            <div class="entry-num">${li + 1}</div>
+            <div class="entry-body">
+              <div class="entry-amt">${fmt(e.amt)}</div>
+              ${e.note ? `<div class="entry-note">${e.note}</div>` : ''}
+              <div class="entry-time"><i class="ti ti-clock" aria-hidden="true"></i> ${timeStr(e.time)}</div>
+            </div>
+            <div class="acts">
+              <button class="ic" onclick="openE(${e.idx})" aria-label="แก้ไข"><i class="ti ti-pencil" aria-hidden="true"></i></button>
+              <button class="ic del" onclick="del(${e.idx})" aria-label="ลบ"><i class="ti ti-trash" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    container.appendChild(block);
+  });
+}
+
+function toggleDay(id) {
+  const el = document.getElementById(id);
+  if (el.style.maxHeight === '0px') {
+    el.style.maxHeight = '1000px';
+  } else {
+    el.style.maxHeight = '0px';
+  }
+}
+
+function del(i) {
+  entries.splice(i, 1);
+  save();
+  render();
+  toast('ลบแล้ว');
+}
+
+function clearAll() {
+  if (!entries.length) return;
+  if (!confirm('ล้างรายการทั้งหมด ' + entries.length + ' รายการ?')) return;
+  entries = [];
+  save();
+  render();
+  toast('ล้างทั้งหมดแล้ว');
+}
+
+function openE(i) {
+  editIdx = i;
+  document.getElementById('m-a').value = entries[i].amt;
+  document.getElementById('m-n').value = entries[i].note || '';
+  document.getElementById('modal').classList.add('on');
+}
+
+function closeM() {
+  document.getElementById('modal').classList.remove('on');
+  editIdx = -1;
+}
+
+function saveE() {
+  const v = parseFloat(document.getElementById('m-a').value);
+  if (!v || isNaN(v) || v <= 0) return;
+  entries[editIdx].amt = v;
+  entries[editIdx].note = document.getElementById('m-n').value.trim();
+  closeM();
+  save();
+  render();
+  toast('แก้ไขแล้ว');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+document.getElementById('inp-a').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+document.getElementById('m-a').addEventListener('keydown', e => { if (e.key === 'Enter') saveE(); });
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeM(); });
+
+load().then(() => { if (document.getElementById('p1').classList.contains('on')) render(); });
+</script>
