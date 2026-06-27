@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>บันทึกรายรับ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #2D6A4F; --green-pale: #f0faf4;
+    --red: #c0392b; --red-light: #fdecea;
+    --border: #e5e7eb; --text: #111827; --text-muted: #6b7280;
+    --bg: #f9fafb; --white: #ffffff; --radius: 12px; --radius-sm: 8px;
+    --itunes: #fc3c44; --itunes-pale: #fff0f0;
+    --xbox: #107c10; --xbox-pale: #f0fff0;
+    --other: #7c3aed; --other-pale: #f5f3ff;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; }
+  .shell { width: 100%; max-width: 900px; min-height: 100vh; background: var(--white); display: flex; flex-direction: column; box-shadow: 0 0 0 1px var(--border); }
+  .header { padding: 1.25rem 1.25rem 0; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .sync-bar { display: flex; align-items: center; gap: 8px; padding: 8px 1.25rem; background: var(--green-pale); border-bottom: 1px solid #c3e6d5; font-size: 12px; color: var(--green); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .sync-dot.syncing { animation: pulse 1s infinite; background: #f59e0b; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .tabs { display: flex; margin: 1rem 0 0; border-bottom: 1.5px solid var(--border); padding: 0 1.25rem; }
+  .tab { flex: 1; padding: 10px 0 12px; font-size: 13px; font-weight: 600; color: var(--text-muted); background: none; border: none; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: color .15s, border-color .15s; }
+  .tab.active { color: var(--green); border-bottom-color: var(--green); }
+  .page { display: none; flex-direction: column; flex: 1; padding: 1.25rem; gap: 1rem; }
+  .page.active { display: flex; }
+
+  /* Rate cards */
+  .rate-section { display: flex; flex-direction: column; gap: 8px; }
+  .sec-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .rate-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 11px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: border-color .15s, background .15s; user-select: none; }
+  .rate-card.itunes-active { border-color: var(--itunes); background: var(--itunes-pale); }
+  .rate-card.xbox-active { border-color: var(--xbox); background: var(--xbox-pale); }
+  .rate-card.other-active { border-color: var(--other); background: var(--other-pale); }
+  .rate-check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; background: var(--white); }
+  .rate-card.itunes-active .rate-check { background: var(--itunes); border-color: var(--itunes); color: white; }
+  .rate-card.xbox-active .rate-check { background: var(--xbox); border-color: var(--xbox); color: white; }
+  .rate-card.other-active .rate-check { background: var(--other); border-color: var(--other); color: white; }
+  .rate-icon { font-size: 18px; flex-shrink: 0; }
+  .rate-info { flex: 1; }
+  .rate-name { font-size: 14px; font-weight: 600; }
+  .rate-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .rate-input-wrap { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .rate-input { width: 75px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 600; text-align: right; outline: none; color: var(--text); background: var(--white); -moz-appearance: textfield; }
+  .rate-input::-webkit-outer-spin-button,.rate-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .rate-input:focus { border-color: var(--green); }
+  .rate-unit { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+  /* Input card */
+  .input-card { background: #f3f4f6; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+  .input-label { text-align: center; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .amount-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 14px; }
+  .baht-sign { font-size: 26px; font-weight: 300; color: var(--text-muted); }
+  #inp-amt { font-size: 42px; font-weight: 700; border: none; background: transparent; color: var(--text); outline: none; width: 200px; text-align: center; -moz-appearance: textfield; letter-spacing: -1px; }
+  #inp-amt::-webkit-outer-spin-button,#inp-amt::-webkit-inner-spin-button { -webkit-appearance: none; }
+  #inp-amt::placeholder { color: #d1d5db; }
+  .sep { width: 40px; height: 1px; background: var(--border); margin: 0 auto 14px; }
+  .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
+  .text-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; color: var(--text); background: var(--white); outline: none; }
+  .text-input:focus { border-color: var(--green); }
+  .text-input::placeholder { color: #d1d5db; }
+
+  /* USD fields */
+  .usd-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .usd-box { background: var(--itunes-pale); border: 1px solid #fca5a5; border-radius: var(--radius-sm); padding: 10px 12px; }
+  .usd-box.xbox { background: var(--xbox-pale); border-color: #86efac; }
+  .usd-box-label { font-size: 11px; font-weight: 600; margin-bottom: 5px; }
+  .usd-box-label.itunes { color: var(--itunes); }
+  .usd-box-label.xbox { color: var(--xbox); }
+  .usd-box-label.other { color: var(--other); }
+  .usd-box.other { background: var(--other-pale); border-color: #c4b5fd; }
+  .usd-input-wrap { display: flex; align-items: center; gap: 5px; }
+  .usd-sign { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+  .usd-input { flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 15px; font-weight: 600; outline: none; color: var(--text); background: var(--white); -moz-appearance: textfield; }
+  .usd-input::-webkit-outer-spin-button,.usd-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .usd-input:focus { border-color: var(--green); }
+  .usd-calc { font-size: 11px; color: var(--text-muted); margin-top: 4px; min-height: 16px; font-weight: 500; }
+
+  .btn-save { width: 100%; padding: 13px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+  .divider { height: 1px; background: var(--border); }
+
+  /* Stats - 3 กล่อง */
+  .stats-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stat-box { border-radius: var(--radius-sm); padding: 12px; }
+  .stat-box.gray { background: #f3f4f6; }
+  .stat-box.green { background: var(--green-pale); border: 1px solid #c3e6d5; }
+  .stat-box.red { background: var(--itunes-pale); border: 1px solid #fca5a5; }
+  .stat-box.purple { background: var(--other-pale); border: 1px solid #c4b5fd; }
+  .stat-box.purple .s-val { color: var(--other); }
+  .stat-box .s-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-box .s-val { font-size: 18px; font-weight: 700; }
+  .stat-box.gray .s-val { color: var(--text); }
+  .stat-box.green .s-val { color: var(--green); }
+  .stat-box.red .s-val { color: var(--red); }
+  .stat-box .s-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  .list-head { display: flex; align-items: center; justify-content: space-between; }
+  .list-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .btn-refresh { font-size: 13px; color: var(--green); background: none; border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; padding: 8px 14px; font-weight: 600; }
+
+  /* Day list */
+  .day-block { margin-bottom: 8px; }
+  .day-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--green-pale); border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; }
+  .day-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--green); }
+  .day-count { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+  .day-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .day-total { font-size: 14px; font-weight: 700; color: var(--green); }
+  .day-cost { font-size: 11px; color: var(--red); font-weight: 500; }
+  .day-body { overflow: hidden; max-height: 3000px; transition: max-height .25s ease; background: var(--white); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 0 12px; }
+  .day-body.collapsed { max-height: 0; padding: 0 12px; border: none; }
+
+  /* Entry rows */
+  .entry { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .entry:last-child { border-bottom: none; }
+  .entry-num { width: 22px; height: 22px; border-radius: 50%; background: #f3f4f6; color: var(--text-muted); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-sale { font-size: 15px; font-weight: 700; color: var(--text); }
+  .entry-cost-line { font-size: 12px; margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .cost-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 2px 8px; border-radius: 100px; font-weight: 500; }
+  .cost-chip.itunes { background: var(--itunes-pale); color: var(--itunes); }
+  .cost-chip.xbox { background: var(--xbox-pale); color: var(--xbox); }
+  .cost-chip.other { background: var(--other-pale); color: var(--other); }
+  .entry-note { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .entry-time { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .entry-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .icon-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .icon-btn.del:hover { background: var(--red-light); }
+
+  /* Table */
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .table-info { font-size: 13px; color: var(--text-muted); }
+  .btn-export { padding: 10px 18px; background: #1d6f42; color: white; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+  thead { background: #1d6f42; color: white; }
+  thead th { padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; }
+  thead th.num { text-align: center; width: 40px; }
+  thead th.right { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f9fafb; }
+  tbody tr.day-sum { background: var(--green-pale); font-weight: 600; }
+  tbody tr.grand-total { background: #1d6f42; color: white; font-weight: 700; }
+  tbody td { padding: 8px 12px; }
+  tbody td.num { text-align: center; color: var(--text-muted); font-size: 12px; }
+  tbody td.right { text-align: right; }
+  tbody td.right-green { text-align: right; font-weight: 600; color: var(--green); }
+  tbody td.right-red { text-align: right; font-weight: 600; color: var(--itunes); }
+  tbody td.right-xbox { text-align: right; font-weight: 600; color: var(--xbox); }
+  tbody td.right-other { text-align: right; font-weight: 600; color: var(--other); }
+  tbody td.right-white { text-align: right; font-weight: 700; }
+  tbody td.muted { color: var(--text-muted); font-size: 12px; }
+  .empty-table { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 14px; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem; }
+  .overlay.open { display: flex; }
+  .modal-box { background: var(--white); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto; }
+  .modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { width: 28px; height: 28px; border: none; background: none; cursor: pointer; font-size: 18px; color: var(--text-muted); border-radius: 6px; }
+  .modal-label { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; color: var(--text); outline: none; -moz-appearance: textfield; }
+  .modal-input::-webkit-outer-spin-button,.modal-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .modal-input:focus { border-color: var(--green); }
+  .modal-input.big { font-size: 22px; font-weight: 700; text-align: center; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .modal-btns { display: flex; gap: 8px; margin-top: 6px; }
+  .btn-cancel { flex: 1; padding: 11px; border: 1px solid var(--border); background: none; border-radius: var(--radius-sm); font-size: 14px; color: var(--text-muted); cursor: pointer; }
+  .btn-confirm { flex: 1; padding: 11px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px); background: #1f2937; color: white; padding: 10px 20px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 200; transition: transform .3s cubic-bezier(.34,1.56,.64,1); white-space: nowrap; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <h1>💰 บันทึกรายรับ</h1>
+    <p>ซิงค์กับ Google Sheets อัตโนมัติ</p>
+  </div>
+  <div class="sync-bar">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-status">เชื่อมต่อ Google Sheets แล้ว</span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab0" onclick="switchTab(0)">➕ บันทึกเงิน</button>
+    <button class="tab" id="tab1" onclick="switchTab(1)">📋 รายการ</button>
+    <button class="tab" id="tab2" onclick="switchTab(2)">📊 ตารางสรุป</button>
+  </div>
+
+  <!-- Page 0 -->
+  <div class="page active" id="page0">
+    <div class="rate-section">
+      <div class="sec-label">⚙️ เรทต้นทุน ($1 USD = ? บาท)</div>
+      <div class="rate-card" id="itunes-card" onclick="togglePlatform('itunes')">
+        <div class="rate-check" id="itunes-check">✓</div>
+        <div class="rate-icon">🎵</div>
+        <div class="rate-info">
+          <div class="rate-name">iTunes</div>
+          <div class="rate-sub">$1 USD เท่ากับกี่บาท</div>
+        </div>
+        <div class="rate-input-wrap" onclick="event.stopPropagation()">
+          <span class="rate-unit">$1 =</span>
+          <input class="rate-input" id="itunes-rate" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+          <span class="rate-unit">฿</span>
+        </div>
+      </div>
+      <div class="rate-card" id="xbox-card" onclick="togglePlatform('xbox')">
+        <div class="rate-check" id="xbox-check">✓</div>
+        <div class="rate-icon">🎮</div>
+        <div class="rate-info">
+          <div class="rate-name">Xbox</div>
+          <div class="rate-sub">$1 USD เท่ากับกี่บาท</div>
+        </div>
+        <div class="rate-input-wrap" onclick="event.stopPropagation()">
+          <span class="rate-unit">$1 =</span>
+          <input class="rate-input" id="xbox-rate" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+          <span class="rate-unit">฿</span>
+        </div>
+      </div>
+      <div class="rate-card" id="other-card" onclick="togglePlatform('other')" style="cursor:pointer">
+        <div class="rate-check" id="other-check">✓</div>
+        <div class="rate-icon">🏷️</div>
+        <div class="rate-info">
+          <div class="rate-name">ต้นทุนอื่นๆ</div>
+          <div class="rate-sub">ใส่ยอดบาทตรงๆ ไม่คำนวณ USD</div>
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="input-card">
+      <div class="input-label">ยอดรายรับ (บาท)</div>
+      <div class="amount-wrap">
+        <span class="baht-sign">฿</span>
+        <input id="inp-amt" type="number" inputmode="decimal" placeholder="0"/>
+      </div>
+      <div class="sep"></div>
+      <div class="field-label">💵 จำนวน USD ที่ใช้ (ถ้ามี)</div>
+      <div class="usd-row">
+        <div class="usd-box">
+          <div class="usd-box-label itunes">🎵 iTunes USD</div>
+          <div class="usd-input-wrap">
+            <span class="usd-sign">$</span>
+            <input class="usd-input" id="inp-usd-itunes" type="number" inputmode="decimal" placeholder="0.00" step="0.01" oninput="calcCost('itunes')"/>
+          </div>
+          <div class="usd-calc" id="calc-itunes"></div>
+        </div>
+        <div class="usd-box xbox">
+          <div class="usd-box-label xbox">🎮 Xbox USD</div>
+          <div class="usd-input-wrap">
+            <span class="usd-sign">$</span>
+            <input class="usd-input" id="inp-usd-xbox" type="number" inputmode="decimal" placeholder="0.00" step="0.01" oninput="calcCost('xbox')"/>
+          </div>
+          <div class="usd-calc" id="calc-xbox"></div>
+        </div>
+      </div>
+      <div class="usd-row" style="margin-top:0" id="other-inp-wrap">
+        <div class="usd-box other" style="grid-column:1/-1">
+          <div class="usd-box-label other">🏷️ ต้นทุนอื่นๆ (บาท)</div>
+          <div class="usd-input-wrap">
+            <span class="usd-sign">฿</span>
+            <input class="usd-input" id="inp-cost-other" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+          </div>
+          <div class="usd-calc" style="color:var(--other)">ใส่ยอดต้นทุนบาทตรงๆ</div>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="field-label">หมายเหตุ (ไม่บังคับ)</div>
+        <input class="text-input" id="inp-note" type="text" placeholder="เช่น ชื่อลูกค้า, รายละเอียด..." maxlength="60"/>
+      </div>
+    </div>
+    <button class="btn-save" id="btn-add" onclick="addEntry()">✓ บันทึกรายการ</button>
+  </div>
+
+  <!-- Page 1 -->
+  <div class="page" id="page1">
+    <div class="stats-3">
+      <div class="stat-box green">
+        <div class="s-label">💰 ยอดรายรับรวม</div>
+        <div class="s-val" id="s-total">฿0.00</div>
+        <div class="s-sub" id="s-today">วันนี้: ฿0.00</div>
+      </div>
+      <div class="stat-box red">
+        <div class="s-label">📉 ต้นทุนรวม (บาท)</div>
+        <div class="s-val" id="s-cost-total">฿0.00</div>
+        <div class="s-sub" id="s-cost-sub">🎵฿0 / 🎮฿0</div>
+      </div>
+      <div class="stat-box gray">
+        <div class="s-label">📦 รายการทั้งหมด</div>
+        <div class="s-val" id="s-count">0</div>
+        <div class="s-sub" id="s-count-sub">วันนี้: 0 รายการ</div>
+      </div>
+    </div>
+    <div class="list-head">
+      <div class="list-title">รายการแยกตามวัน</div>
+      <button class="btn-refresh" onclick="loadFromSheet()">🔄 รีเฟรช</button>
+    </div>
+    <div id="day-list"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+
+  <!-- Page 2 -->
+  <div class="page" id="page2">
+    <div class="table-toolbar">
+      <div class="table-info" id="table-info">รายการทั้งหมด</div>
+      <button class="btn-export" onclick="exportExcel()">📥 Export Excel</button>
+    </div>
+    <div class="stats-3">
+      <div class="stat-box green">
+        <div class="s-label">💰 ยอดรายรับรวม</div>
+        <div class="s-val" id="s2-total">฿0.00</div>
+      </div>
+      <div class="stat-box red">
+        <div class="s-label">📉 ต้นทุนรวม (บาท)</div>
+        <div class="s-val" id="s2-cost-total">฿0.00</div>
+        <div class="s-sub" id="s2-cost-sub">🎵฿0 / 🎮฿0</div>
+      </div>
+      <div class="stat-box gray">
+        <div class="s-label">📦 รายการ</div>
+        <div class="s-val" id="s2-count">0</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th>วันที่</th>
+            <th class="right">ยอดขาย (฿)</th>
+            <th class="right">💰 ต้นทุนรวม (฿)</th>
+            <th>เวลา</th>
+            <th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="6" class="empty-table">⏳ กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div class="modal-title">✏️ แก้ไขรายการ</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">ยอดรายรับ (บาท)</div>
+      <input class="modal-input big" id="m-amt" type="number" inputmode="decimal"/>
+    </div>
+    <div class="modal-grid">
+      <div>
+        <div class="modal-label">🎵 iTunes USD</div>
+        <input class="modal-input" id="m-usd-itunes" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+      <div>
+        <div class="modal-label">เรท iTunes ($1=฿)</div>
+        <input class="modal-input" id="m-rate-itunes" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+    </div>
+    <div class="modal-grid">
+      <div>
+        <div class="modal-label">🎮 Xbox USD</div>
+        <input class="modal-input" id="m-usd-xbox" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+      <div>
+        <div class="modal-label">เรท Xbox ($1=฿)</div>
+        <input class="modal-input" id="m-rate-xbox" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+    </div>
+    <div class="modal-grid">
+      <div>
+        <div class="modal-label">🏷️ <span id="m-other-label">อื่นๆ</span> USD</div>
+        <input class="modal-input" id="m-usd-other" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+      <div>
+        <div class="modal-label">เรท <span id="m-other-label2">อื่นๆ</span> ($1=฿)</div>
+        <input class="modal-input" id="m-rate-other" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
+      </div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">หมายเหตุ</div>
+      <input class="modal-input" id="m-note" type="text" placeholder="หมายเหตุ..." maxlength="60"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-confirm" onclick="saveEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxA4bzWIxswANUHrsgEQFZAQ7wCT1CVvnzQLPtXUxc4BR0wbPmWF_g3jHXL5gRjzBg/exec';
+let entries = [], editId = null;
+
+// helpers
+function uid() { return Date.now()+'-'+Math.random().toString(36).slice(2,7); }
+function fmt(n) { return '฿'+(+n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtN(n) { return (+(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtU(n) { return '$'+(+n||0).toFixed(2); }
+function dayKey(d) { return new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function dayFull(d) { return new Date(d).toLocaleDateString('th-TH',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}); }
+function timeStr(d) { return new Date(d).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
+function todayKey() { return dayKey(new Date()); }
+
+// คำนวณต้นทุนของ entry โดยใช้ rate ที่บันทึกมาพร้อม entry
+function costOf(e) {
+  const rI = parseFloat(e.rateItunes) || 0;
+  const rX = parseFloat(e.rateXbox) || 0;
+  const cI = (parseFloat(e.usdItunes)||0) * rI;
+  const cX = (parseFloat(e.usdXbox)||0) * rX;
+  // cO = ต้นทุนอื่นๆ เป็นบาทตรงๆ (เก็บใน costOther)
+  const cO = parseFloat(e.costOther)||0;
+  return { cI, cX, cO, total: cI+cX+cO };
+}
+
+// rates
+function getOtherName() { return localStorage.getItem('other_name')||'อื่นๆ'; }
+function saveOtherName() {
+  const v = document.getElementById('other-name-input').value||'อื่นๆ';
+  localStorage.setItem('other_name', v);
+  ['other-label-inp','s-other-name','s2-other-name','m-other-label','m-other-label2'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.textContent = v;
+  });
+}
+
+function loadRates() {
+  document.getElementById('itunes-rate').value = localStorage.getItem('r_itunes')||'';
+  document.getElementById('xbox-rate').value   = localStorage.getItem('r_xbox')||'';
+  applyCard('itunes', localStorage.getItem('on_itunes')!=='false');
+  applyCard('xbox',   localStorage.getItem('on_xbox')!=='false');
+}
+function saveRates() {
+  localStorage.setItem('r_itunes', document.getElementById('itunes-rate').value);
+  localStorage.setItem('r_xbox',   document.getElementById('xbox-rate').value);
+  calcCost('itunes'); calcCost('xbox');
+}
+function applyCard(p, on) {
+  document.getElementById(p+'-card').className = 'rate-card'+(on?' '+p+'-active':'');
+  document.getElementById(p+'-check').textContent = on?'✓':'';
+  localStorage.setItem('on_'+p, on);
+}
+function togglePlatform(p) {
+  const current = localStorage.getItem('on_'+p)==='true';
+  applyCard(p, !current);
+}
+function getRate(p) { return parseFloat(localStorage.getItem('r_'+p))||0; }
+
+function calcCost(p) {
+  const usd = parseFloat(document.getElementById('inp-usd-'+p).value)||0;
+  const rate = getRate(p);
+  const el = document.getElementById('calc-'+p);
+  const color = p==='itunes'?'var(--itunes)':p==='xbox'?'var(--xbox)':'var(--other)';
+  if(usd && rate) {
+    el.textContent = fmtU(usd)+' × ฿'+rate+' = '+fmt(usd*rate)+' ต้นทุน';
+    el.style.color = color;
+  } else {
+    el.textContent = rate ? 'เรท $1 = ฿'+rate : '';
+    el.style.color = '';
+  }
+}
+
+// ── local cache & pending queue ──
+const LS_ENTRIES = 'local_entries_v2';
+const LS_PENDING = 'pending_queue_v2';
+const LS_VER = 'app_ver';
+// reset ค่าเก่าถ้าเป็น version ใหม่
+// other: default off ถ้ายังไม่เคยตั้งค่า
+
+function loadLocalEntries() {
+  try { return JSON.parse(localStorage.getItem(LS_ENTRIES)||'[]'); } catch(e){ return []; }
+}
+function saveLocalEntries() {
+  localStorage.setItem(LS_ENTRIES, JSON.stringify(entries));
+}
+function getPending() {
+  try { return JSON.parse(localStorage.getItem(LS_PENDING)||'[]'); } catch(e){ return []; }
+}
+function addPending(item) {
+  const q = getPending(); q.push(item); localStorage.setItem(LS_PENDING, JSON.stringify(q));
+}
+function clearPending() { localStorage.setItem(LS_PENDING, '[]'); }
+
+// ── sync status ──
+function setSyncStatus(s,m) {
+  document.getElementById('sync-dot').className='sync-dot'+(s==='syncing'?' syncing':s==='error'?' error':'');
+  document.getElementById('sync-status').textContent=m;
+}
+
+// ── flush pending ไปยัง Sheets (background) ──
+async function flushPending() {
+  const q = getPending();
+  if(!q.length) return true;
+  const failed = [];
+  for(const item of q) {
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify(item)
+      });
+    } catch(e){ failed.push(item); }
+  }
+  localStorage.setItem(LS_PENDING, JSON.stringify(failed));
+  return failed.length === 0;
+}
+
+// ── callSheet: เพิ่มลง queue ทันที แล้ว flush background ──
+async function callSheet(data) {
+  addPending(data);
+  setSyncStatus('syncing','กำลังซิงค์...');
+  flushPending().then(ok=>{
+    const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    if(ok) setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
+    else setSyncStatus('error','มีรายการรอซิงค์ ('+getPending().length+')');
+  });
+}
+
+// ── โหลดจาก Sheets ──
+async function loadFromSheet(silent=false) {
+  if(!silent){
+    setSyncStatus('syncing','กำลังโหลด...');
+    document.getElementById('day-list').innerHTML='<div class="loading">⏳ กำลังโหลด...</div>';
+    document.getElementById('table-body').innerHTML='<tr><td colspan="6" class="empty-table">⏳ กำลังโหลด...</td></tr>';
+  }
+  // flush pending ก่อน
+  await flushPending();
+  // โหลดข้อมูลด้วย fetch + no-cors fallback
+  try {
+    const r = await fetch(SCRIPT_URL);
+    const j = await r.json();
+    if(j.ok && j.entries) {
+      entries = j.entries.filter(e=>e.id&&e.amt).map(e=>({
+        id:         String(e.id),
+        amt:        parseFloat(e.amt)||0,
+        note:       e.note||'',
+        time:       e.time,
+        platform:   e.platform||'',
+        usdItunes:  parseFloat(e.usdItunes)||0,
+        usdXbox:    parseFloat(e.usdXbox)||0,
+        rateItunes: parseFloat(e.rateItunes)||0,
+        rateXbox:   parseFloat(e.rateXbox)||0,
+        usdOther:   parseFloat(e.usdOther)||0,
+        rateOther:  parseFloat(e.rateOther)||0,
+        costOther:  parseFloat(e.costOther)||0,
+        otherName:  e.otherName||''
+      }));
+      entries.sort((a,b)=>new Date(b.time)-new Date(a.time));
+      saveLocalEntries();
+    }
+    const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
+    renderList(); renderTable();
+  } catch(err){
+    // fallback: ใช้ local cache
+    entries = loadLocalEntries();
+    setSyncStatus('error','ออฟไลน์ — ใช้ข้อมูลในเครื่อง ('+err.message+')');
+    renderList(); renderTable();
+  }
+}
+
+// ── auto-sync ทุก 10 นาที ──
+function startAutoSync() {
+  setInterval(async ()=>{
+    const pending = getPending();
+    const p1 = document.getElementById('page1').classList.contains('active');
+    const p2 = document.getElementById('page2').classList.contains('active');
+    if(pending.length || p1 || p2) {
+      await loadFromSheet(true);
+      const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+      setSyncStatus('ok','ซิงค์อัตโนมัติ ✓ '+now);
+    }
+  }, 10*60*1000);
+}
+
+function switchTab(n) {
+  [0,1,2].forEach(i=>{
+    document.getElementById('tab'+i).classList.toggle('active',i===n);
+    document.getElementById('page'+i).classList.toggle('active',i===n);
+  });
+  if(n===1||n===2) loadFromSheet();
+}
+
+async function addEntry() {
+  const v = parseFloat(document.getElementById('inp-amt').value);
+  if(!v||isNaN(v)||v<=0){ const el=document.getElementById('inp-amt'); el.style.color='#c0392b'; setTimeout(()=>el.style.color='',700); return; }
+  const usdI  = parseFloat(document.getElementById('inp-usd-itunes').value)||0;
+  const usdX  = parseFloat(document.getElementById('inp-usd-xbox').value)||0;
+  const usdO  = 0; // ไม่ใช้แล้ว
+  const costOtherDirect = parseFloat(document.getElementById('inp-cost-other').value)||0;
+  const rI    = getRate('itunes');
+  const rX    = getRate('xbox');
+  const rO    = 0;
+  const oName = 'ต้นทุนอื่นๆ';
+  let platform = '';
+  if(usdI) platform += 'iTunes';
+  if(usdX) platform += (platform?'+':'')+'Xbox';
+  if(costOtherDirect) platform += (platform?'+':'')+oName;
+
+  const entry = {
+    id: uid(), amt: v,
+    note: document.getElementById('inp-note').value.trim(),
+    time: new Date().toISOString(),
+    platform,
+    usdItunes: usdI, usdXbox: usdX, usdOther: 0,
+    rateItunes: rI,  rateXbox: rX,  rateOther: 1,
+    costOther: costOtherDirect,
+    otherName: oName
+  };
+
+  // บันทึกลง local ทันทีก่อน ไม่ต้องรอ Sheets
+  entries.unshift(entry);
+  saveLocalEntries();
+  // clear form
+  document.getElementById('inp-amt').value='';
+  document.getElementById('inp-usd-itunes').value='';
+  document.getElementById('inp-usd-xbox').value='';
+  document.getElementById('inp-note').value='';
+  document.getElementById('calc-itunes').textContent='';
+  document.getElementById('calc-xbox').textContent='';
+  const cI=usdI*rI, cX=usdX*rX;
+  let msg = '✅ บันทึกแล้ว '+fmt(v);
+  if(cI||cX) msg += ' | ต้นทุน '+fmt(cI+cX);
+  showToast(msg);
+  switchTab(1);
+  // sync ไป Sheets แบบ background
+  setSyncStatus('syncing','กำลังซิงค์...');
+  callSheet({action:'add',...entry});
+}
+
+function calcTotals() {
+  const tSale  = entries.reduce((s,e)=>s+e.amt,0);
+  const tCI    = entries.reduce((s,e)=>s+costOf(e).cI,0);
+  const tCX    = entries.reduce((s,e)=>s+costOf(e).cX,0);
+  const tCO    = entries.reduce((s,e)=>s+costOf(e).cO,0);
+  const tUO    = entries.reduce((s,e)=>s+(parseFloat(e.usdOther)||0),0);
+  const tCost  = tCI+tCX;
+  const tAll   = tCI+tCX+tCO;
+  const todayE = entries.filter(e=>dayKey(e.time)===todayKey());
+  const todayS = todayE.reduce((s,e)=>s+e.amt,0);
+  return {tSale,tCI,tCX,tCO,tUO,tCost,tAll,todayE,todayS};
+}
+
+function renderStats() {
+  const {tSale,tCI,tCX,tCO,tUO,tCost,tAll,todayE,todayS} = calcTotals();
+  const oName = getOtherName();
+  ['s-other-name','s2-other-name'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=oName; });
+  ['m-other-label','m-other-label2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=oName; });
+  // Page 1
+  document.getElementById('s-total').textContent      = fmt(tSale);
+  document.getElementById('s-today').textContent      = 'วันนี้: '+fmt(todayS);
+  document.getElementById('s-cost-total').textContent = fmt(tCost);
+  document.getElementById('s-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX);
+  document.getElementById('s-count').textContent      = entries.length+' รายการ';
+  document.getElementById('s-count-sub').textContent  = 'วันนี้: '+todayE.length+' รายการ';
+
+  // Page 2
+  document.getElementById('s2-total').textContent      = fmt(tSale);
+  document.getElementById('s2-cost-total').textContent = fmt(tCost);
+  document.getElementById('s2-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX);
+  document.getElementById('s2-count').textContent      = entries.length+' รายการ';
+
+}
+
+function renderList() {
+  renderStats();
+  const c = document.getElementById('day-list'); c.innerHTML='';
+  if(!entries.length){ c.innerHTML='<div class="loading">📭 ยังไม่มีรายการ</div>'; return; }
+  const groups={};
+  entries.forEach(e=>{ const k=dayFull(e.time); if(!groups[k]) groups[k]=[]; groups[k].push(e); });
+  let first=true;
+  Object.keys(groups).forEach(day=>{
+    const items=groups[day];
+    const dayT  = items.reduce((s,e)=>s+e.amt,0);
+    const dayCI = items.reduce((s,e)=>s+costOf(e).cI,0);
+    const dayCX = items.reduce((s,e)=>s+costOf(e).cX,0);
+    const dayC  = dayCI+dayCX;
+    const bid='b-'+day.replace(/[^a-z0-9]/gi,'-');
+    const bc=first?'day-body':'day-body collapsed'; first=false;
+    const block=document.createElement('div'); block.className='day-block';
+    block.innerHTML=`
+      <div class="day-head" onclick="toggleDay('${bid}')">
+        <div class="day-left">📅 ${day} <span class="day-count">(${items.length})</span></div>
+        <div class="day-right">
+          <div class="day-total">${fmt(dayT)}</div>
+          ${dayC>0?`<div class="day-cost">ต้นทุน ${fmt(dayC)}</div>`:''}
+        </div>
+      </div>
+      <div class="${bc}" id="${bid}">
+        ${items.map((e,li)=>{
+          const {cI,cX,cO} = costOf(e);
+          const oLabel = e.otherName||getOtherName();
+          const chips = [
+            (e.usdItunes&&e.rateItunes) ? `<span class="cost-chip itunes">🎵 ${fmtU(e.usdItunes)} × ฿${e.rateItunes} = ${fmt(cI)}</span>` : '',
+            (e.usdXbox&&e.rateXbox)     ? `<span class="cost-chip xbox">🎮 ${fmtU(e.usdXbox)} × ฿${e.rateXbox} = ${fmt(cX)}</span>` : '',
+            (e.usdOther&&e.rateOther)   ? `<span class="cost-chip other">🏷️ ${fmtU(e.usdOther)} × ฿${e.rateOther} = ${fmt(cO)} (${oLabel})</span>` : ''
+          ].filter(Boolean).join('');
+          return `<div class="entry">
+            <div class="entry-num">${li+1}</div>
+            <div class="entry-info">
+              <div class="entry-sale">ขาย ${fmt(e.amt)}</div>
+              ${chips?`<div class="entry-cost-line">${chips}</div>`:''}
+              ${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}
+              <div class="entry-time">🕐 ${timeStr(e.time)}</div>
+            </div>
+            <div class="entry-btns">
+              <button class="icon-btn" onclick="openEdit('${e.id}')">✏️</button>
+              <button class="icon-btn del" onclick="delEntry('${e.id}')">🗑</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    c.appendChild(block);
+  });
+}
+
+function renderTable() {
+  renderStats();
+  const tbody=document.getElementById('table-body'); tbody.innerHTML='';
+  if(!entries.length){ tbody.innerHTML='<tr><td colspan="6" class="empty-table">📭 ยังไม่มีรายการ</td></tr>'; document.getElementById('table-info').textContent='ยังไม่มีรายการ'; return; }
+  const groups={};
+  entries.forEach(e=>{ const k=dayKey(e.time); if(!groups[k]) groups[k]=[]; groups[k].push(e); });
+  let no=1;
+  Object.keys(groups).forEach(day=>{
+    const items=groups[day];
+    const dT=items.reduce((s,e)=>s+e.amt,0);
+    const dCI=items.reduce((s,e)=>s+costOf(e).cI,0);
+    const dCX=items.reduce((s,e)=>s+costOf(e).cX,0);
+    items.forEach(e=>{
+      const {cI,cX,cO}=costOf(e);
+      const costTotal = cI+cX+cO;
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td class="num">${no++}</td>
+        <td>${dayKey(e.time)}</td>
+        <td class="right-green">${fmtN(e.amt)}</td>
+        <td class="right-red">${costTotal?fmtN(costTotal):'-'}</td>
+        <td class="muted">${timeStr(e.time)}</td>
+        <td class="muted">${e.note||'-'}</td>`;
+      tbody.appendChild(tr);
+    });
+    const dCO=items.reduce((s,e)=>s+costOf(e).cO,0);
+    const dCostTotal=dCI+dCX+dCO;
+    const ts=document.createElement('tr'); ts.className='day-sum';
+    ts.innerHTML=`<td></td><td>รวม ${day}</td>
+      <td class="right-green">${fmtN(dT)}</td>
+      <td class="right-red">${dCostTotal?fmtN(dCostTotal):'-'}</td>
+      <td></td><td></td>`;
+    tbody.appendChild(ts);
+  });
+  const tT=entries.reduce((s,e)=>s+e.amt,0);
+  const tCI=entries.reduce((s,e)=>s+costOf(e).cI,0);
+  const tCX=entries.reduce((s,e)=>s+costOf(e).cX,0);
+  const tCO2=entries.reduce((s,e)=>s+costOf(e).cO,0);
+  const tCostAll=tCI+tCX+tCO2;
+  const tg=document.createElement('tr'); tg.className='grand-total';
+  tg.innerHTML=`<td></td><td>ยอดรวมทั้งหมด</td>
+    <td class="right-white">${fmtN(tT)}</td>
+    <td class="right-white">${tCostAll?fmtN(tCostAll):'-'}</td>
+    <td></td><td></td>`;
+  tbody.appendChild(tg);
+  document.getElementById('table-info').textContent='ทั้งหมด '+entries.length+' รายการ';
+}
+
+function toggleDay(id){ document.getElementById(id).classList.toggle('collapsed'); }
+
+async function delEntry(id){
+  if(!confirm('ลบรายการนี้?')) return;
+  entries = entries.filter(e=>e.id!==id);
+  saveLocalEntries();
+  renderList(); renderTable();
+  showToast('ลบแล้ว');
+  callSheet({action:'delete',id});
+}
+
+function openEdit(id){
+  const e=entries.find(e=>e.id===id); if(!e) return;
+  editId=id;
+  document.getElementById('m-amt').value=e.amt;
+  document.getElementById('m-usd-itunes').value=e.usdItunes||'';
+  document.getElementById('m-rate-itunes').value=e.rateItunes||getRate('itunes')||'';
+  document.getElementById('m-usd-xbox').value=e.usdXbox||'';
+  document.getElementById('m-rate-xbox').value=e.rateXbox||getRate('xbox')||'';
+  document.getElementById('m-usd-other').value=e.usdOther||'';
+  document.getElementById('m-rate-other').value=e.rateOther||getRate('other')||'';
+  document.getElementById('m-note').value=e.note||'';
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); editId=null; }
+async function saveEdit(){
+  const v=parseFloat(document.getElementById('m-amt').value);
+  if(!v||isNaN(v)||v<=0) return;
+  const usdI=parseFloat(document.getElementById('m-usd-itunes').value)||0;
+  const rI=parseFloat(document.getElementById('m-rate-itunes').value)||0;
+  const usdX=parseFloat(document.getElementById('m-usd-xbox').value)||0;
+  const rX=parseFloat(document.getElementById('m-rate-xbox').value)||0;
+  let platform='';
+  if(usdI) platform+='iTunes';
+  if(usdX) platform+=(platform?'+':'')+'Xbox';
+  const idx = entries.findIndex(e=>e.id===editId);
+  if(idx>=0){
+    entries[idx] = {...entries[idx], amt:v, note:document.getElementById('m-note').value.trim(),
+      platform, usdItunes:usdI, rateItunes:rI, usdXbox:usdX, rateXbox:rX,
+      usdOther:usdO, rateOther:rO2, otherName:oNameEdit};
+    saveLocalEntries();
+  }
+  closeModal(); showToast('แก้ไขแล้ว');
+  renderList(); renderTable();
+  callSheet({action:'update',id:editId,amt:v,
+    note:document.getElementById('m-note').value.trim(),
+    platform,usdItunes:usdI,rateItunes:rI,usdXbox:usdX,rateXbox:rX});
+}
+
+function exportExcel(){
+  if(!entries.length){ showToast('ยังไม่มีข้อมูล'); return; }
+  const tT=entries.reduce((s,e)=>s+e.amt,0);
+  const tCI=entries.reduce((s,e)=>s+costOf(e).cI,0);
+  const tCX=entries.reduce((s,e)=>s+costOf(e).cX,0);
+  const BOM='\uFEFF', rows=[];
+  rows.push(['สรุปภาพรวม','','','','','','','','','','']);
+  rows.push(['ยอดรายรับรวม',fmtN(tT),'','ต้นทุน iTunes',fmtN(tCI),'','ต้นทุน Xbox',fmtN(tCX),'','ต้นทุนรวม',fmtN(tCI+tCX)]);
+  rows.push([]);
+  rows.push(['#','วันที่','ยอดขาย (฿)','ต้นทุนรวม (฿)','เวลา','หมายเหตุ']);
+  const groups={};
+  entries.forEach(e=>{ const k=dayKey(e.time); if(!groups[k]) groups[k]=[]; groups[k].push(e); });
+  let no=1;
+  Object.keys(groups).forEach(day=>{
+    const items=groups[day];
+    const dT=items.reduce((s,e)=>s+e.amt,0);
+    const dCI=items.reduce((s,e)=>s+costOf(e).cI,0);
+    const dCX=items.reduce((s,e)=>s+costOf(e).cX,0);
+    items.forEach(e=>{
+      const {cI,cX,cO}=costOf(e);
+      rows.push([no++,dayKey(e.time),fmtN(e.amt),
+        e.usdItunes?fmtU(e.usdItunes):'-', e.rateItunes?'฿'+e.rateItunes:'-', cI?fmtN(cI):'-',
+        e.usdXbox?fmtU(e.usdXbox):'-', e.rateXbox?'฿'+e.rateXbox:'-', cX?fmtN(cX):'-',
+        timeStr(e.time), e.note||'']);
+    });
+    rows.push(['','รวม '+day,fmtN(dT),'','',dCI?fmtN(dCI):'-','','',dCX?fmtN(dCX):'-','','']);
+    rows.push([]);
+  });
+  rows.push(['','ยอดรวมทั้งหมด',fmtN(tT),'','',fmtN(tCI),'','',fmtN(tCX),'','']);
+  const csv=BOM+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  const today=new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
+  a.href=url; a.download='บันทึกรายรับ_'+today+'.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 ดาวน์โหลดแล้ว');
+}
+
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+
+document.getElementById('inp-amt').addEventListener('keydown',e=>{if(e.key==='Enter')addEntry();});
+document.getElementById('m-amt').addEventListener('keydown',e=>{if(e.key==='Enter')saveEdit();});
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target===document.getElementById('overlay'))closeModal();});
+document.getElementById('itunes-rate').addEventListener('input',saveRates);
+document.getElementById('xbox-rate').addEventListener('input',saveRates);
+document.getElementById('other-rate').addEventListener('input',saveRates);
+
+loadRates();
+// โหลด local cache ก่อนทันที
+entries = loadLocalEntries();
+// แล้วค่อย sync จาก Sheets ใน background
+loadFromSheet(true);
+// เริ่ม auto-sync ทุก 10 นาที
+startAutoSync();
+</script>
+</body>
+</html>
