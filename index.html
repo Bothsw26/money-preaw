@@ -381,7 +381,7 @@
     </div>
     <div class="modal-grid">
       <div>
-        <div class="modal-label">🏷️ <span id="m-other-label">อื่นๆ</span> USD</div>
+        <div class="modal-label">🏷️ ต้นทุนอื่นๆ (บาท)</div>
         <input class="modal-input" id="m-usd-other" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/>
       </div>
       <div>
@@ -631,6 +631,7 @@ async function addEntry() {
   document.getElementById('inp-note').value='';
   document.getElementById('calc-itunes').textContent='';
   document.getElementById('calc-xbox').textContent='';
+  document.getElementById('inp-cost-other').value='';
   const cI=usdI*rI, cX=usdX*rX;
   let msg = '✅ บันทึกแล้ว '+fmt(v);
   if(cI||cX) msg += ' | ต้นทุน '+fmt(cI+cX);
@@ -662,15 +663,15 @@ function renderStats() {
   // Page 1
   document.getElementById('s-total').textContent      = fmt(tSale);
   document.getElementById('s-today').textContent      = 'วันนี้: '+fmt(todayS);
-  document.getElementById('s-cost-total').textContent = fmt(tCost);
-  document.getElementById('s-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX);
+  document.getElementById('s-cost-total').textContent = fmt(tAll);
+  document.getElementById('s-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX)+(tCO?' / 🏷️'+fmt(tCO):'');
   document.getElementById('s-count').textContent      = entries.length+' รายการ';
   document.getElementById('s-count-sub').textContent  = 'วันนี้: '+todayE.length+' รายการ';
 
   // Page 2
   document.getElementById('s2-total').textContent      = fmt(tSale);
-  document.getElementById('s2-cost-total').textContent = fmt(tCost);
-  document.getElementById('s2-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX);
+  document.getElementById('s2-cost-total').textContent = fmt(tAll);
+  document.getElementById('s2-cost-sub').textContent   = '🎵'+fmt(tCI)+' / 🎮'+fmt(tCX)+(tCO?' / 🏷️'+fmt(tCO):'');
   document.getElementById('s2-count').textContent      = entries.length+' รายการ';
 
 }
@@ -687,7 +688,8 @@ function renderList() {
     const dayT  = items.reduce((s,e)=>s+e.amt,0);
     const dayCI = items.reduce((s,e)=>s+costOf(e).cI,0);
     const dayCX = items.reduce((s,e)=>s+costOf(e).cX,0);
-    const dayC  = dayCI+dayCX;
+    const dayCO = items.reduce((s,e)=>s+costOf(e).cO,0);
+    const dayC  = dayCI+dayCX+dayCO;
     const bid='b-'+day.replace(/[^a-z0-9]/gi,'-');
     const bc=first?'day-body':'day-body collapsed'; first=false;
     const block=document.createElement('div'); block.className='day-block';
@@ -706,7 +708,7 @@ function renderList() {
           const chips = [
             (e.usdItunes&&e.rateItunes) ? `<span class="cost-chip itunes">🎵 ${fmtU(e.usdItunes)} × ฿${e.rateItunes} = ${fmt(cI)}</span>` : '',
             (e.usdXbox&&e.rateXbox)     ? `<span class="cost-chip xbox">🎮 ${fmtU(e.usdXbox)} × ฿${e.rateXbox} = ${fmt(cX)}</span>` : '',
-            (e.usdOther&&e.rateOther)   ? `<span class="cost-chip other">🏷️ ${fmtU(e.usdOther)} × ฿${e.rateOther} = ${fmt(cO)} (${oLabel})</span>` : ''
+            (cO>0) ? `<span class="cost-chip other">🏷️ ต้นทุนอื่นๆ ${fmt(cO)}</span>` : ''
           ].filter(Boolean).join('');
           return `<div class="entry">
             <div class="entry-num">${li+1}</div>
@@ -794,7 +796,7 @@ function openEdit(id){
   document.getElementById('m-rate-itunes').value=e.rateItunes||getRate('itunes')||'';
   document.getElementById('m-usd-xbox').value=e.usdXbox||'';
   document.getElementById('m-rate-xbox').value=e.rateXbox||getRate('xbox')||'';
-  document.getElementById('m-usd-other').value=e.usdOther||'';
+  document.getElementById('m-usd-other').value=e.costOther||'';
   document.getElementById('m-rate-other').value=e.rateOther||getRate('other')||'';
   document.getElementById('m-note').value=e.note||'';
   document.getElementById('overlay').classList.add('open');
@@ -807,21 +809,24 @@ async function saveEdit(){
   const rI=parseFloat(document.getElementById('m-rate-itunes').value)||0;
   const usdX=parseFloat(document.getElementById('m-usd-xbox').value)||0;
   const rX=parseFloat(document.getElementById('m-rate-xbox').value)||0;
+  const costOtherEdit=parseFloat(document.getElementById('m-usd-other').value)||0;
+  const note=document.getElementById('m-note').value.trim();
   let platform='';
   if(usdI) platform+='iTunes';
   if(usdX) platform+=(platform?'+':'')+'Xbox';
+  if(costOtherEdit) platform+=(platform?'+':'')+'ต้นทุนอื่นๆ';
   const idx = entries.findIndex(e=>e.id===editId);
   if(idx>=0){
-    entries[idx] = {...entries[idx], amt:v, note:document.getElementById('m-note').value.trim(),
+    entries[idx] = {...entries[idx], amt:v, note,
       platform, usdItunes:usdI, rateItunes:rI, usdXbox:usdX, rateXbox:rX,
-      usdOther:usdO, rateOther:rO2, otherName:oNameEdit};
+      costOther:costOtherEdit, otherName:'ต้นทุนอื่นๆ'};
     saveLocalEntries();
   }
   closeModal(); showToast('แก้ไขแล้ว');
   renderList(); renderTable();
-  callSheet({action:'update',id:editId,amt:v,
-    note:document.getElementById('m-note').value.trim(),
-    platform,usdItunes:usdI,rateItunes:rI,usdXbox:usdX,rateXbox:rX});
+  callSheet({action:'update',id:editId,amt:v,note,
+    platform,usdItunes:usdI,rateItunes:rI,usdXbox:usdX,rateXbox:rX,
+    costOther:costOtherEdit,otherName:'ต้นทุนอื่นๆ'});
 }
 
 function exportExcel(){
