@@ -591,7 +591,12 @@ function switchTab(n) {
     document.getElementById('tab'+i).classList.toggle('active',i===n);
     document.getElementById('page'+i).classList.toggle('active',i===n);
   });
-  if(n===1||n===2) loadFromSheet();
+  if(n===1||n===2) {
+    // แสดงข้อมูลจาก cache ทันที ไม่ต้องรอ
+    renderList(); renderTable();
+    // sync เบื้องหลังแบบเงียบๆ ไม่บล็อก UI
+    loadFromSheet(true);
+  }
 }
 
 async function addEntry() {
