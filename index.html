@@ -475,7 +475,7 @@ function calcCost(p) {
 
 // ── local cache & pending queue ──
 const LS_ENTRIES = 'local_entries_v2';
-const LS_PENDING = 'pending_queue_v2';
+// LS_PENDING deprecated
 const LS_VER = 'app_ver';
 // reset ค่าเก่าถ้าเป็น version ใหม่
 // other: default off ถ้ายังไม่เคยตั้งค่า
@@ -500,45 +500,37 @@ function setSyncStatus(s,m) {
   document.getElementById('sync-status').textContent=m;
 }
 
-// ── flush pending ไปยัง Sheets (background) ──
-let _isFlushing = false;
-async function flushPending() {
-  if(_isFlushing) return true; // ป้องกัน flush ซ้ำ
-  const q = getPending();
-  if(!q.length) return true;
-  _isFlushing = true;
-  const failed = [];
-  for(const item of q) {
+// ── callSheet: ส่งตรงไป Sheets เลย ไม่ใช้ queue ──
+let _isSending = false;
+const _sendQueue = [];
+
+async function callSheet(data) {
+  _sendQueue.push(data);
+  if(_isSending) return; // มีคนส่งอยู่แล้ว รอคิว
+  _isSending = true;
+  setSyncStatus('syncing','กำลังซิงค์...');
+  while(_sendQueue.length > 0) {
+    const item = _sendQueue.shift(); // ดึงออกจาก queue ทีละอัน
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         body: JSON.stringify(item)
       });
-      // no-cors ส่งสำเร็จแล้ว ลบออกจาก queue ทันที
-    } catch(e){ failed.push(item); }
+    } catch(e) {
+      // ignore error - no-cors ไม่สามารถรู้ได้ว่า error จริงหรือเปล่า
+    }
   }
-  localStorage.setItem(LS_PENDING, JSON.stringify(failed));
-  _isFlushing = false;
-  return failed.length === 0;
+  _isSending = false;
+  const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
 }
 
-// ── callSheet: ส่งตรงไปเลย ไม่ queue ซ้ำถ้า action เดิมมีอยู่แล้ว ──
-async function callSheet(data) {
-  // เช็คว่า id นี้อยู่ใน queue แล้วหรือยัง (ป้องกันซ้ำ)
-  if(data.id) {
-    const q = getPending();
-    const already = q.some(item => item.id === data.id && item.action === data.action);
-    if(already) return;
-  }
-  addPending(data);
-  setSyncStatus('syncing','กำลังซิงค์...');
-  flushPending().then(ok=>{
-    const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-    if(ok) setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
-    else setSyncStatus('error','มีรายการรอซิงค์ ('+getPending().length+')');
-  });
-}
+// เก็บไว้ compatibility
+async function flushPending() { return true; }
+function getPending() { return []; }
+function addPending(item) {}
+function clearPending() {}
 
 // ── โหลดจาก Sheets ──
 async function loadFromSheet(silent=false) {
