@@ -570,6 +570,10 @@ async function loadFromSheet(silent=false) {
         otherName:  e.otherName||''
       }));
       entries.sort((a,b)=>new Date(b.time)-new Date(a.time));
+      // ตัดข้อมูลเก่าเกิน 20 วันออก
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 20);
+      entries = entries.filter(e => new Date(e.time) >= cutoff);
       saveLocalEntries();
     }
     const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
