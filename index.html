@@ -403,7 +403,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxA4bzWIxswANUHrsgEQFZAQ7wCT1CVvnzQLPtXUxc4BR0wbPmWF_g3jHXL5gRjzBg/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTY0on_wKSBN6YCn7FzIk2BzJ2lX3bJwCErhe9lGwnOdapDTS0FPCghC6MtiL5p7ra/exec';
 let entries = [], editId = null;
 
 // helpers
@@ -572,7 +572,7 @@ async function loadFromSheet(silent=false) {
       entries.sort((a,b)=>new Date(b.time)-new Date(a.time));
       // ตัดข้อมูลเก่าเกิน 20 วันออก
       const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 20);
+      cutoff.setDate(cutoff.getDate() - 30);
       entries = entries.filter(e => new Date(e.time) >= cutoff);
       saveLocalEntries();
     }
