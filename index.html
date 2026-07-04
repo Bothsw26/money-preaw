@@ -501,9 +501,12 @@ function setSyncStatus(s,m) {
 }
 
 // ── flush pending ไปยัง Sheets (background) ──
+let _isFlushing = false;
 async function flushPending() {
+  if(_isFlushing) return true; // ป้องกัน flush ซ้ำ
   const q = getPending();
   if(!q.length) return true;
+  _isFlushing = true;
   const failed = [];
   for(const item of q) {
     try {
@@ -512,14 +515,22 @@ async function flushPending() {
         mode: 'no-cors',
         body: JSON.stringify(item)
       });
+      // no-cors ส่งสำเร็จแล้ว ลบออกจาก queue ทันที
     } catch(e){ failed.push(item); }
   }
   localStorage.setItem(LS_PENDING, JSON.stringify(failed));
+  _isFlushing = false;
   return failed.length === 0;
 }
 
-// ── callSheet: เพิ่มลง queue ทันที แล้ว flush background ──
+// ── callSheet: ส่งตรงไปเลย ไม่ queue ซ้ำถ้า action เดิมมีอยู่แล้ว ──
 async function callSheet(data) {
+  // เช็คว่า id นี้อยู่ใน queue แล้วหรือยัง (ป้องกันซ้ำ)
+  if(data.id) {
+    const q = getPending();
+    const already = q.some(item => item.id === data.id && item.action === data.action);
+    if(already) return;
+  }
   addPending(data);
   setSyncStatus('syncing','กำลังซิงค์...');
   flushPending().then(ok=>{
