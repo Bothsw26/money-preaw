@@ -473,12 +473,9 @@ function calcCost(p) {
   }
 }
 
-// ── local cache & pending queue ──
+// ── local cache & retry queue ──
 const LS_ENTRIES = 'local_entries_v2';
-// LS_PENDING deprecated
-const LS_VER = 'app_ver';
-// reset ค่าเก่าถ้าเป็น version ใหม่
-// other: default off ถ้ายังไม่เคยตั้งค่า
+const LS_RETRY   = 'retry_queue_v3';
 
 function loadLocalEntries() {
   try { return JSON.parse(localStorage.getItem(LS_ENTRIES)||'[]'); } catch(e){ return []; }
@@ -486,13 +483,12 @@ function loadLocalEntries() {
 function saveLocalEntries() {
   localStorage.setItem(LS_ENTRIES, JSON.stringify(entries));
 }
-function getPending() {
-  try { return JSON.parse(localStorage.getItem(LS_PENDING)||'[]'); } catch(e){ return []; }
+function getRetryQueue() {
+  try { return JSON.parse(localStorage.getItem(LS_RETRY)||'[]'); } catch(e){ return []; }
 }
-function addPending(item) {
-  const q = getPending(); q.push(item); localStorage.setItem(LS_PENDING, JSON.stringify(q));
+function saveRetryQueue(q) {
+  localStorage.setItem(LS_RETRY, JSON.stringify(q));
 }
-function clearPending() { localStorage.setItem(LS_PENDING, '[]'); }
 
 // ── sync status ──
 function setSyncStatus(s,m) {
@@ -500,33 +496,66 @@ function setSyncStatus(s,m) {
   document.getElementById('sync-status').textContent=m;
 }
 
-// ── callSheet: ส่งตรงไป Sheets เลย ไม่ใช้ queue ──
+// ── ส่งข้อมูลไป Sheets พร้อม retry ──
 let _isSending = false;
-const _sendQueue = [];
 
-async function callSheet(data) {
-  _sendQueue.push(data);
-  if(_isSending) return; // มีคนส่งอยู่แล้ว รอคิว
-  _isSending = true;
-  setSyncStatus('syncing','กำลังซิงค์...');
-  while(_sendQueue.length > 0) {
-    const item = _sendQueue.shift(); // ดึงออกจาก queue ทีละอัน
-    try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify(item)
-      });
-    } catch(e) {
-      // ignore error - no-cors ไม่สามารถรู้ได้ว่า error จริงหรือเปล่า
-    }
+async function sendToSheet(item) {
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify(item)
+    });
+    return true;
+  } catch(e) {
+    return false;
   }
-  _isSending = false;
-  const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-  setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
 }
 
-// เก็บไว้ compatibility
+async function callSheet(data) {
+  // เพิ่มลง retry queue ก่อนเสมอ (กันหาย)
+  const q = getRetryQueue();
+  const exists = q.some(i => i.id === data.id && i.action === data.action);
+  if(!exists) { q.push(data); saveRetryQueue(q); }
+
+  if(_isSending) return;
+  _isSending = true;
+  setSyncStatus('syncing','กำลังซิงค์...');
+
+  let retryQ = getRetryQueue();
+  const failed = [];
+  for(const item of retryQ) {
+    const ok = await sendToSheet(item);
+    if(!ok) failed.push(item);
+  }
+  saveRetryQueue(failed);
+  _isSending = false;
+
+  const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  if(failed.length === 0) {
+    setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
+  } else {
+    setSyncStatus('error','รอส่ง '+failed.length+' รายการ ('+now+')');
+  }
+}
+
+async function flushRetryQueue() {
+  if(!_isSending && getRetryQueue().length > 0) {
+    setSyncStatus('syncing','กำลัง retry...');
+    const q = getRetryQueue();
+    const failed = [];
+    for(const item of q) {
+      const ok = await sendToSheet(item);
+      if(!ok) failed.push(item);
+    }
+    saveRetryQueue(failed);
+    const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    if(failed.length === 0) setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
+    else setSyncStatus('error','รอส่ง '+failed.length+' รายการ');
+  }
+}
+
+// compatibility
 async function flushPending() { return true; }
 function getPending() { return []; }
 function addPending(item) {}
@@ -546,7 +575,7 @@ async function loadFromSheet(silent=false) {
     const r = await fetch(SCRIPT_URL);
     const j = await r.json();
     if(j.ok && j.entries) {
-      entries = j.entries.filter(e=>e.id&&e.amt).map(e=>({
+      const fromSheet = j.entries.filter(e=>e.id&&e.amt).map(e=>({
         id:         String(e.id),
         amt:        parseFloat(e.amt)||0,
         note:       e.note||'',
@@ -561,12 +590,19 @@ async function loadFromSheet(silent=false) {
         costOther:  parseFloat(e.costOther)||0,
         otherName:  e.otherName||''
       }));
+      // merge: รวม local ที่อยู่ใน retry queue (ยังไม่ถึง Sheets) เพื่อกันหาย
+      const retryIds = new Set(getRetryQueue().filter(i=>i.action==='add').map(i=>String(i.id)));
+      const sheetIds  = new Set(fromSheet.map(e=>e.id));
+      const localOnly = entries.filter(e => retryIds.has(e.id) && !sheetIds.has(e.id));
+      entries = [...fromSheet, ...localOnly];
       entries.sort((a,b)=>new Date(b.time)-new Date(a.time));
-      // ตัดข้อมูลเก่าเกิน 20 วันออก
+      // ตัดข้อมูลเก่าเกิน 30 วันออก
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30);
       entries = entries.filter(e => new Date(e.time) >= cutoff);
       saveLocalEntries();
+      // flush retry queue ถ้ายังค้างอยู่
+      if(getRetryQueue().length > 0) flushRetryQueue();
     }
     const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
     setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
@@ -579,16 +615,21 @@ async function loadFromSheet(silent=false) {
   }
 }
 
-// ── auto-sync ทุก 10 นาที ──
+// ── auto-sync ทุก 10 นาที + retry ทุก 2 นาที ──
 function startAutoSync() {
+  // retry queue ทุก 2 นาที
   setInterval(async ()=>{
-    const pending = getPending();
+    if(getRetryQueue().length > 0) {
+      await flushRetryQueue();
+    }
+  }, 2*60*1000);
+
+  // sync กับ Sheets ทุก 10 นาที
+  setInterval(async ()=>{
     const p1 = document.getElementById('page1').classList.contains('active');
     const p2 = document.getElementById('page2').classList.contains('active');
-    if(pending.length || p1 || p2) {
+    if(p1 || p2) {
       await loadFromSheet(true);
-      const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-      setSyncStatus('ok','ซิงค์อัตโนมัติ ✓ '+now);
     }
   }, 10*60*1000);
 }
