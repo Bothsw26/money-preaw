@@ -575,21 +575,28 @@ async function loadFromSheet(silent=false) {
     const r = await fetch(SCRIPT_URL);
     const j = await r.json();
     if(j.ok && j.entries) {
-      const fromSheet = j.entries.filter(e=>e.id&&e.amt).map(e=>({
-        id:         String(e.id),
-        amt:        parseFloat(e.amt)||0,
-        note:       e.note||'',
-        time:       e.time,
-        platform:   e.platform||'',
-        usdItunes:  parseFloat(e.usdItunes)||0,
-        usdXbox:    parseFloat(e.usdXbox)||0,
-        rateItunes: parseFloat(e.rateItunes)||0,
-        rateXbox:   parseFloat(e.rateXbox)||0,
-        usdOther:   parseFloat(e.usdOther)||0,
-        rateOther:  parseFloat(e.rateOther)||0,
-        costOther:  parseFloat(e.costOther)||0,
-        otherName:  e.otherName||''
-      }));
+      // ✅ FIX: dedupe by id ตอนแปลงข้อมูลจาก Sheet
+      // กันกรณีใน Sheet มีแถว id ซ้ำ (เช่น เกิดจาก add ซ้ำก่อนหน้านี้)
+      // ไม่ให้ UI แสดงรายการซ้ำ — ถ้าซ้ำ ใช้ตัวหลังสุดที่เจอ
+      const seen = new Map();
+      j.entries.filter(e=>e.id&&e.amt).forEach(e=>{
+        seen.set(String(e.id), {
+          id:         String(e.id),
+          amt:        parseFloat(e.amt)||0,
+          note:       e.note||'',
+          time:       e.time,
+          platform:   e.platform||'',
+          usdItunes:  parseFloat(e.usdItunes)||0,
+          usdXbox:    parseFloat(e.usdXbox)||0,
+          rateItunes: parseFloat(e.rateItunes)||0,
+          rateXbox:   parseFloat(e.rateXbox)||0,
+          usdOther:   parseFloat(e.usdOther)||0,
+          rateOther:  parseFloat(e.rateOther)||0,
+          costOther:  parseFloat(e.costOther)||0,
+          otherName:  e.otherName||''
+        });
+      });
+      const fromSheet = Array.from(seen.values());
       // merge: รวม local ที่อยู่ใน retry queue (ยังไม่ถึง Sheets) เพื่อกันหาย
       const retryIds = new Set(getRetryQueue().filter(i=>i.action==='add').map(i=>String(i.id)));
       const sheetIds  = new Set(fromSheet.map(e=>e.id));
@@ -648,51 +655,62 @@ function switchTab(n) {
 }
 
 async function addEntry() {
+  // ✅ FIX: กันกดปุ่มซ้ำ (double-tap) ระหว่างกำลังบันทึก
+  const btn = document.getElementById('btn-add');
+  if (btn.disabled) return;
+
   const v = parseFloat(document.getElementById('inp-amt').value);
   if(!v||isNaN(v)||v<=0){ const el=document.getElementById('inp-amt'); el.style.color='#c0392b'; setTimeout(()=>el.style.color='',700); return; }
-  const usdI  = parseFloat(document.getElementById('inp-usd-itunes').value)||0;
-  const usdX  = parseFloat(document.getElementById('inp-usd-xbox').value)||0;
-  const usdO  = 0; // ไม่ใช้แล้ว
-  const costOtherDirect = parseFloat(document.getElementById('inp-cost-other').value)||0;
-  const rI    = getRate('itunes');
-  const rX    = getRate('xbox');
-  const rO    = 0;
-  const oName = 'ต้นทุนอื่นๆ';
-  let platform = '';
-  if(usdI) platform += 'iTunes';
-  if(usdX) platform += (platform?'+':'')+'Xbox';
-  if(costOtherDirect) platform += (platform?'+':'')+oName;
 
-  const entry = {
-    id: uid(), amt: v,
-    note: document.getElementById('inp-note').value.trim(),
-    time: new Date().toISOString(),
-    platform,
-    usdItunes: usdI, usdXbox: usdX, usdOther: 0,
-    rateItunes: rI,  rateXbox: rX,  rateOther: 1,
-    costOther: costOtherDirect,
-    otherName: oName
-  };
+  btn.disabled = true; // ล็อกปุ่มทันทีก่อนทำงานต่อ
 
-  // บันทึกลง local ทันทีก่อน ไม่ต้องรอ Sheets
-  entries.unshift(entry);
-  saveLocalEntries();
-  // clear form
-  document.getElementById('inp-amt').value='';
-  document.getElementById('inp-usd-itunes').value='';
-  document.getElementById('inp-usd-xbox').value='';
-  document.getElementById('inp-note').value='';
-  document.getElementById('calc-itunes').textContent='';
-  document.getElementById('calc-xbox').textContent='';
-  document.getElementById('inp-cost-other').value='';
-  const cI=usdI*rI, cX=usdX*rX;
-  let msg = '✅ บันทึกแล้ว '+fmt(v);
-  if(cI||cX) msg += ' | ต้นทุน '+fmt(cI+cX);
-  showToast(msg);
-  switchTab(1);
-  // sync ไป Sheets แบบ background
-  setSyncStatus('syncing','กำลังซิงค์...');
-  callSheet({action:'add',...entry});
+  try {
+    const usdI  = parseFloat(document.getElementById('inp-usd-itunes').value)||0;
+    const usdX  = parseFloat(document.getElementById('inp-usd-xbox').value)||0;
+    const usdO  = 0; // ไม่ใช้แล้ว
+    const costOtherDirect = parseFloat(document.getElementById('inp-cost-other').value)||0;
+    const rI    = getRate('itunes');
+    const rX    = getRate('xbox');
+    const rO    = 0;
+    const oName = 'ต้นทุนอื่นๆ';
+    let platform = '';
+    if(usdI) platform += 'iTunes';
+    if(usdX) platform += (platform?'+':'')+'Xbox';
+    if(costOtherDirect) platform += (platform?'+':'')+oName;
+
+    const entry = {
+      id: uid(), amt: v,
+      note: document.getElementById('inp-note').value.trim(),
+      time: new Date().toISOString(),
+      platform,
+      usdItunes: usdI, usdXbox: usdX, usdOther: 0,
+      rateItunes: rI,  rateXbox: rX,  rateOther: 1,
+      costOther: costOtherDirect,
+      otherName: oName
+    };
+
+    // บันทึกลง local ทันทีก่อน ไม่ต้องรอ Sheets
+    entries.unshift(entry);
+    saveLocalEntries();
+    // clear form
+    document.getElementById('inp-amt').value='';
+    document.getElementById('inp-usd-itunes').value='';
+    document.getElementById('inp-usd-xbox').value='';
+    document.getElementById('inp-note').value='';
+    document.getElementById('calc-itunes').textContent='';
+    document.getElementById('calc-xbox').textContent='';
+    document.getElementById('inp-cost-other').value='';
+    const cI=usdI*rI, cX=usdX*rX;
+    let msg = '✅ บันทึกแล้ว '+fmt(v);
+    if(cI||cX) msg += ' | ต้นทุน '+fmt(cI+cX);
+    showToast(msg);
+    switchTab(1);
+    // sync ไป Sheets แบบ background
+    setSyncStatus('syncing','กำลังซิงค์...');
+    callSheet({action:'add',...entry});
+  } finally {
+    btn.disabled = false; // ปลดล็อกปุ่มเสมอ ไม่ว่าจะสำเร็จหรือ error
+  }
 }
 
 function calcTotals() {
