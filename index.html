@@ -403,7 +403,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTLRAf6qoAzunVYKvdlOK2gRHpQJ8MnjyhEW9crV8PGsng9nvXt2QX-iR93suGT2ud/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyJRPzSQ5JKLMzQbUTNFFGBGf3tO6iL-Rpny_tcSRFqitd-SJL1XiHWUGR_Ts1fLUyz/exec';
 let entries = [], editId = null;
 
 // helpers
@@ -506,10 +506,28 @@ async function sendToSheet(item) {
       mode: 'no-cors',
       body: JSON.stringify(item)
     });
-    return true;
   } catch(e) {
+    // fetch ล้มเหลวชัดเจน (เช่น ไม่มีเน็ต) ถือว่าไม่สำเร็จแน่นอน
     return false;
   }
+
+  // ✅ FIX: เพราะ no-cors อ่าน response จริงไม่ได้เลย (ได้ true เสมอ)
+  // เราต้อง "verify" ย้อนกลับด้วยการ GET แล้วเช็คว่า id นี้ไปโผล่ใน Sheet จริงไหม
+  // ถ้าไม่เจอ แปลว่าจริงๆ แล้วส่งไม่สำเร็จ (URL ผิด, สิทธิ์ไม่พอ, deploy เก่า ฯลฯ)
+  if (item.action === 'add') {
+    try {
+      const r = await fetch(SCRIPT_URL);
+      const j = await r.json();
+      const found = j.ok && j.entries && j.entries.some(e => String(e.id) === String(item.id));
+      return !!found;
+    } catch(e) {
+      // ตรวจสอบไม่ได้ (เช่น เน็ตหลุดตอน verify) — ถือว่ายังไม่ยืนยัน ให้ retry ในรอบถัดไป
+      return false;
+    }
+  }
+
+  // action อื่น (delete/update) ไม่ verify เพื่อความเร็ว — no-cors อย่างน้อยก็ยิงไปแล้ว
+  return true;
 }
 
 async function callSheet(data) {
