@@ -128,6 +128,9 @@
   .sync-badge .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .sync-badge.synced .dot { background: var(--green); }
   .sync-badge.pending .dot { background: #f97316; }
+  .entry.deleting { opacity: 0.5; }
+  .entry.delete-pending { background: var(--red-light); border-radius: var(--radius-sm); padding-left: 8px; padding-right: 8px; }
+  .delete-status { font-size: 11px; color: var(--red); font-weight: 600; margin-top: 2px; }
   .entry-info { flex: 1; min-width: 0; }
   .entry-sale { font-size: 15px; font-weight: 700; color: var(--text); }
   .entry-cost-line { font-size: 12px; margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -564,6 +567,10 @@ async function callSheet(data) {
       // ✅ ยืนยันแล้วว่าถึง Sheet จริง อัปเดตสถานะให้ขึ้นเขียวทันที
       const idx = entries.findIndex(e => e.id === item.id);
       if (idx >= 0) { entries[idx].synced = true; saveLocalEntries(); renderList(); renderTable(); }
+    } else if (item.action === 'delete') {
+      // ✅ ลบสำเร็จจริงตอนนี้แล้ว (รอบก่อนอาจล้มเหลว) ค่อยเอาออกจากจอ
+      entries = entries.filter(e => e.id !== item.id);
+      saveLocalEntries(); renderList(); renderTable();
     }
   }
   saveRetryQueue(failed);
@@ -589,6 +596,9 @@ async function flushRetryQueue() {
       else if (item.action === 'add') {
         const idx = entries.findIndex(e => e.id === item.id);
         if (idx >= 0) { entries[idx].synced = true; saveLocalEntries(); renderList(); renderTable(); }
+      } else if (item.action === 'delete') {
+        entries = entries.filter(e => e.id !== item.id);
+        saveLocalEntries(); renderList(); renderTable();
       }
     }
     saveRetryQueue(failed);
@@ -640,7 +650,12 @@ async function loadFromSheet(silent=false) {
           otherName:  e.otherName||''
         });
       });
-      const fromSheet = Array.from(seen.values()).map(e => ({...e, synced: true})); // ✅ เจอใน Sheet จริง = ยืนยันแล้ว
+      const deleteRetryIds = new Set(getRetryQueue().filter(i=>i.action==='delete').map(i=>String(i.id)));
+      const fromSheet = Array.from(seen.values()).map(e => ({
+        ...e,
+        synced: true, // ✅ เจอใน Sheet จริง = ยืนยันแล้ว
+        deletePending: deleteRetryIds.has(e.id) // ✅ คงสถานะ "รอลบ" ไว้ ถ้ายังอยู่ในคิว
+      }));
       // merge: รวม local ที่อยู่ใน retry queue (ยังไม่ถึง Sheets) เพื่อกันหาย
       const retryIds = new Set(getRetryQueue().filter(i=>i.action==='add').map(i=>String(i.id)));
       const sheetIds  = new Set(fromSheet.map(e=>e.id));
@@ -838,7 +853,7 @@ function renderList() {
             (e.usdXbox&&e.rateXbox)     ? `<span class="cost-chip xbox">🎮 ${fmtU(e.usdXbox)} × ฿${e.rateXbox} = ${fmt(cX)}</span>` : '',
             (cO>0) ? `<span class="cost-chip other">🏷️ ต้นทุนอื่นๆ ${fmt(cO)}</span>` : ''
           ].filter(Boolean).join('');
-          return `<div class="entry">
+          return `<div class="entry${e.deleting ? ' deleting' : ''}${e.deletePending ? ' delete-pending' : ''}">
             <div class="entry-num">${li+1}</div>
             <div class="entry-info">
               <div class="entry-sale">ขาย ${fmt(e.amt)}${e.synced
@@ -847,10 +862,12 @@ function renderList() {
               ${chips?`<div class="entry-cost-line">${chips}</div>`:''}
               ${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}
               <div class="entry-time">🕐 ${timeStr(e.time)}</div>
+              ${e.deleting ? `<div class="delete-status">⏳ กำลังลบ...</div>` : ''}
+              ${e.deletePending ? `<div class="delete-status">⚠️ ลบไม่สำเร็จ กำลังลองใหม่อัตโนมัติ</div>` : ''}
             </div>
             <div class="entry-btns">
-              <button class="icon-btn" onclick="openEdit('${e.id}')">✏️</button>
-              <button class="icon-btn del" onclick="delEntry('${e.id}')">🗑</button>
+              <button class="icon-btn" onclick="openEdit('${e.id}')" ${e.deleting?'disabled':''}>✏️</button>
+              <button class="icon-btn del" onclick="delEntry('${e.id}')" ${e.deleting?'disabled':''}>🗑</button>
             </div>
           </div>`;
         }).join('')}
@@ -911,11 +928,35 @@ function toggleDay(id){ document.getElementById(id).classList.toggle('collapsed'
 
 async function delEntry(id){
   if(!confirm('ลบรายการนี้?')) return;
-  entries = entries.filter(e=>e.id!==id);
-  saveLocalEntries();
+  const idx = entries.findIndex(e=>e.id===id);
+  if(idx<0) return;
+
+  // ✅ FIX: เดิมลบออกจากจอทันทีโดยไม่รอผลจริง ถ้าลบใน Sheet ไม่สำเร็จ
+  // (เช่น เน็ตหลุด) พอซิงค์รอบใหม่จาก Sheet รายการจะ "คืนชีพ" กลับมา
+  // เพราะ Sheet ยังมีอยู่จริง แก้โดยรอผลจริงก่อน ค่อยลบออกจากจอทีหลัง
+  entries[idx].deleting = true;
   renderList(); renderTable();
-  showToast('ลบแล้ว');
-  callSheet({action:'delete',id});
+
+  const ok = await sendToSheet({action:'delete', id});
+
+  if (ok) {
+    entries = entries.filter(e=>e.id!==id);
+    saveLocalEntries();
+    renderList(); renderTable();
+    showToast('ลบแล้ว ✓ ยืนยันจาก Sheet');
+  } else {
+    // ลบไม่สำเร็จ — เก็บไว้ในคิว retry ให้ลองใหม่อัตโนมัติ ไม่ลบออกจากจอ
+    entries[idx].deleting = false;
+    entries[idx].deletePending = true;
+    saveLocalEntries();
+    const q = getRetryQueue();
+    if (!q.some(i => i.id===id && i.action==='delete')) {
+      q.push({action:'delete', id});
+      saveRetryQueue(q);
+    }
+    renderList(); renderTable();
+    showToast('⚠️ ลบไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ');
+  }
 }
 
 function openEdit(id){
