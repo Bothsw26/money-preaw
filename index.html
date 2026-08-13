@@ -506,34 +506,23 @@ function setSyncStatus(s,m) {
 let _isSending = false;
 
 async function sendToSheet(item) {
+  // ✅ FIX (speed): เดิมใช้ mode:'no-cors' ทำให้อ่านผลจริงไม่ได้เลย ต้องยิง GET
+  // ไปถามซ้ำอีกรอบว่าสำเร็จไหม (2 round-trip ต่อ 1 การบันทึก = ช้าเกือบเท่าตัว)
+  // เปลี่ยนมาส่งแบบ Content-Type: text/plain แทน ซึ่งเบราว์เซอร์นับเป็น
+  // "simple request" ไม่ต้องขอ preflight ทำให้อ่าน response จริงจาก Apps Script
+  // ได้เลยในรอบเดียว รู้ผลจริงทันที ไม่ต้องเดาและไม่ต้องยิงซ้ำ
   try {
-    await fetch(SCRIPT_URL, {
+    const r = await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(item)
     });
+    const j = await r.json();
+    return !!(j && j.ok);
   } catch(e) {
-    // fetch ล้มเหลวชัดเจน (เช่น ไม่มีเน็ต) ถือว่าไม่สำเร็จแน่นอน
+    // fetch ล้มเหลว (เน็ตหลุด, เซิร์ฟเวอร์ไม่ตอบ ฯลฯ) ถือว่าไม่สำเร็จ ให้ retry รอบถัดไป
     return false;
   }
-
-  // ✅ FIX: เพราะ no-cors อ่าน response จริงไม่ได้เลย (ได้ true เสมอ)
-  // เราต้อง "verify" ย้อนกลับด้วยการ GET แล้วเช็คว่า id นี้ไปโผล่ใน Sheet จริงไหม
-  // ถ้าไม่เจอ แปลว่าจริงๆ แล้วส่งไม่สำเร็จ (URL ผิด, สิทธิ์ไม่พอ, deploy เก่า ฯลฯ)
-  if (item.action === 'add') {
-    try {
-      const r = await fetch(SCRIPT_URL);
-      const j = await r.json();
-      const found = j.ok && j.entries && j.entries.some(e => String(e.id) === String(item.id));
-      return !!found;
-    } catch(e) {
-      // ตรวจสอบไม่ได้ (เช่น เน็ตหลุดตอน verify) — ถือว่ายังไม่ยืนยัน ให้ retry ในรอบถัดไป
-      return false;
-    }
-  }
-
-  // action อื่น (delete/update) ไม่ verify เพื่อความเร็ว — no-cors อย่างน้อยก็ยิงไปแล้ว
-  return true;
 }
 
 async function callSheet(data) {
@@ -666,14 +655,15 @@ function startAutoSync() {
     }
   }, 2*60*1000);
 
-  // sync กับ Sheets ทุก 10 นาที
+  // sync กับ Sheets ทุก 1 นาที (ลดจาก 10 นาทีเดิม เพราะข้อมูลที่โหลดเบาลงแล้ว
+  // จากการกรอง 30 วันฝั่งเซิร์ฟเวอร์ — ทำให้เครื่องอื่นเห็นรายการใหม่เร็วขึ้น)
   setInterval(async ()=>{
     const p1 = document.getElementById('page1').classList.contains('active');
     const p2 = document.getElementById('page2').classList.contains('active');
     if(p1 || p2) {
       await loadFromSheet(true);
     }
-  }, 10*60*1000);
+  }, 60*1000);
 
   // ✅ FIX: มือถือมักพักการทำงานของแท็บเมื่อสลับแอป/ล็อกหน้าจอ
   // ทำให้ setInterval หยุดทำงานไปด้วย พอกลับมาเปิดแท็บ สถานะซิงค์เลยค้างเวลาเก่า
