@@ -120,6 +120,12 @@
   .entry { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .entry:last-child { border-bottom: none; }
   .entry-num { width: 22px; height: 22px; border-radius: 50%; background: #f3f4f6; color: var(--text-muted); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .sync-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 100px; margin-left: 6px; vertical-align: middle; }
+  .sync-badge.synced { background: var(--green-pale); color: var(--green); }
+  .sync-badge.pending { background: #fff7ed; color: #c2410c; }
+  .sync-badge .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sync-badge.synced .dot { background: var(--green); }
+  .sync-badge.pending .dot { background: #f97316; }
   .entry-info { flex: 1; min-width: 0; }
   .entry-sale { font-size: 15px; font-weight: 700; color: var(--text); }
   .entry-cost-line { font-size: 12px; margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -545,6 +551,11 @@ async function callSheet(data) {
   for(const item of retryQ) {
     const ok = await sendToSheet(item);
     if(!ok) failed.push(item);
+    else if (item.action === 'add') {
+      // ✅ ยืนยันแล้วว่าถึง Sheet จริง อัปเดตสถานะให้ขึ้นเขียวทันที
+      const idx = entries.findIndex(e => e.id === item.id);
+      if (idx >= 0) { entries[idx].synced = true; saveLocalEntries(); renderList(); renderTable(); }
+    }
   }
   saveRetryQueue(failed);
   _isSending = false;
@@ -566,6 +577,10 @@ async function flushRetryQueue() {
     for(const item of q) {
       const ok = await sendToSheet(item);
       if(!ok) failed.push(item);
+      else if (item.action === 'add') {
+        const idx = entries.findIndex(e => e.id === item.id);
+        if (idx >= 0) { entries[idx].synced = true; saveLocalEntries(); renderList(); renderTable(); }
+      }
     }
     saveRetryQueue(failed);
     _isSending = false;
@@ -616,11 +631,11 @@ async function loadFromSheet(silent=false) {
           otherName:  e.otherName||''
         });
       });
-      const fromSheet = Array.from(seen.values());
+      const fromSheet = Array.from(seen.values()).map(e => ({...e, synced: true})); // ✅ เจอใน Sheet จริง = ยืนยันแล้ว
       // merge: รวม local ที่อยู่ใน retry queue (ยังไม่ถึง Sheets) เพื่อกันหาย
       const retryIds = new Set(getRetryQueue().filter(i=>i.action==='add').map(i=>String(i.id)));
       const sheetIds  = new Set(fromSheet.map(e=>e.id));
-      const localOnly = entries.filter(e => retryIds.has(e.id) && !sheetIds.has(e.id));
+      const localOnly = entries.filter(e => retryIds.has(e.id) && !sheetIds.has(e.id)).map(e => ({...e, synced: false})); // ✅ ยังไม่ยืนยัน
       entries = [...fromSheet, ...localOnly];
       entries.sort((a,b)=>new Date(b.time)-new Date(a.time));
       // ตัดข้อมูลเก่าเกิน 30 วันออก
@@ -717,7 +732,8 @@ async function addEntry() {
       usdItunes: usdI, usdXbox: usdX, usdOther: 0,
       rateItunes: rI,  rateXbox: rX,  rateOther: 1,
       costOther: costOtherDirect,
-      otherName: oName
+      otherName: oName,
+      synced: false // ✅ ยังไม่ยืนยันว่าอยู่ใน Sheet จริง จนกว่าจะ verify ผ่าน
     };
 
     // บันทึกลง local ทันทีก่อน ไม่ต้องรอ Sheets
@@ -815,7 +831,9 @@ function renderList() {
           return `<div class="entry">
             <div class="entry-num">${li+1}</div>
             <div class="entry-info">
-              <div class="entry-sale">ขาย ${fmt(e.amt)}</div>
+              <div class="entry-sale">ขาย ${fmt(e.amt)}${e.synced
+                ? `<span class="sync-badge synced"><span class="dot"></span>อยู่ใน Sheet</span>`
+                : `<span class="sync-badge pending"><span class="dot"></span>รอซิงค์</span>`}</div>
               ${chips?`<div class="entry-cost-line">${chips}</div>`:''}
               ${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}
               <div class="entry-time">🕐 ${timeStr(e.time)}</div>
