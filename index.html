@@ -422,6 +422,18 @@ function dayFull(d) { return new Date(d).toLocaleDateString('th-TH',{weekday:'sh
 function timeStr(d) { return new Date(d).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
 function todayKey() { return dayKey(new Date()); }
 
+// ✅ สร้าง ISO timestamp แบบเวลาไทย (+07:00) แทน UTC (Z)
+// ใช้ตอนบันทึกรายการใหม่ เพื่อให้เวลาที่เก็บใน Sheet อ่านง่าย ตรงกับเวลาไทยเลย
+// ไม่ต้องคำนวณ +7 ชั่วโมงเองตอนดูข้อมูลอีกต่อไป
+function thaiISOString() {
+  const now = new Date();
+  const thaiMs = now.getTime() + 7 * 60 * 60 * 1000; // เลื่อนไปเป็นเวลาไทย
+  const t = new Date(thaiMs);
+  const pad = n => String(n).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}`
+    + `T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}:${pad(t.getUTCSeconds())}+07:00`;
+}
+
 // คำนวณต้นทุนของ entry โดยใช้ rate ที่บันทึกมาพร้อม entry
 function costOf(e) {
   const rI = parseFloat(e.rateItunes) || 0;
@@ -717,7 +729,7 @@ async function addEntry() {
     const entry = {
       id: uid(), amt: v,
       note: document.getElementById('inp-note').value.trim(),
-      time: new Date().toISOString(),
+      time: thaiISOString(), // ✅ เก็บเป็นเวลาไทย +07:00 แทน UTC
       platform,
       usdItunes: usdI, usdXbox: usdX, usdOther: 0,
       rateItunes: rI,  rateXbox: rX,  rateOther: 1,
