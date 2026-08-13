@@ -104,6 +104,8 @@
   .list-head { display: flex; align-items: center; justify-content: space-between; }
   .list-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
   .btn-refresh { font-size: 13px; color: var(--green); background: none; border: 1px solid #c3e6d5; border-radius: var(--radius-sm); cursor: pointer; padding: 8px 14px; font-weight: 600; }
+  .list-btns { display: flex; gap: 8px; }
+  .btn-open-sheet { font-size: 13px; color: #1d6f42; background: none; border: 1px solid #86efac; border-radius: var(--radius-sm); cursor: pointer; padding: 8px 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; }
 
   /* Day list */
   .day-block { margin-bottom: 8px; }
@@ -308,7 +310,10 @@
     </div>
     <div class="list-head">
       <div class="list-title">รายการแยกตามวัน</div>
-      <button class="btn-refresh" onclick="loadFromSheet()">🔄 รีเฟรช</button>
+      <div class="list-btns">
+        <a class="btn-open-sheet" id="open-sheet-link" href="https://docs.google.com/spreadsheets/d/1tnUvp1odGKx1qNvmvfiwteRMRr7q3ACOoTwGoaEEikM/edit?gid=0#gid=0" target="_blank" rel="noopener">📄 เปิด Sheet</a>
+        <button class="btn-refresh" onclick="loadFromSheet()">🔄 รีเฟรช</button>
+      </div>
     </div>
     <div id="day-list"><div class="loading">⏳ กำลังโหลด...</div></div>
   </div>
@@ -317,7 +322,10 @@
   <div class="page" id="page2">
     <div class="table-toolbar">
       <div class="table-info" id="table-info">รายการทั้งหมด</div>
-      <button class="btn-export" onclick="exportExcel()">📥 Export Excel</button>
+      <div class="list-btns">
+        <a class="btn-open-sheet" href="https://docs.google.com/spreadsheets/d/1tnUvp1odGKx1qNvmvfiwteRMRr7q3ACOoTwGoaEEikM/edit?gid=0#gid=0" target="_blank" rel="noopener">📄 เปิด Sheet</a>
+        <button class="btn-export" onclick="exportExcel()">📥 Export Excel</button>
+      </div>
     </div>
     <div class="stats-3">
       <div class="stat-box green">
