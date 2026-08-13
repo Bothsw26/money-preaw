@@ -559,6 +559,7 @@ async function callSheet(data) {
 
 async function flushRetryQueue() {
   if(!_isSending && getRetryQueue().length > 0) {
+    _isSending = true;
     setSyncStatus('syncing','กำลัง retry...');
     const q = getRetryQueue();
     const failed = [];
@@ -567,6 +568,7 @@ async function flushRetryQueue() {
       if(!ok) failed.push(item);
     }
     saveRetryQueue(failed);
+    _isSending = false;
     const now = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
     if(failed.length === 0) setSyncStatus('ok','ซิงค์แล้ว ✓ '+now);
     else setSyncStatus('error','รอส่ง '+failed.length+' รายการ');
@@ -657,6 +659,17 @@ function startAutoSync() {
       await loadFromSheet(true);
     }
   }, 10*60*1000);
+
+  // ✅ FIX: มือถือมักพักการทำงานของแท็บเมื่อสลับแอป/ล็อกหน้าจอ
+  // ทำให้ setInterval หยุดทำงานไปด้วย พอกลับมาเปิดแท็บ สถานะซิงค์เลยค้างเวลาเก่า
+  // แก้โดยเช็คว่าเมื่อไหร่แท็บกลับมา "มองเห็นได้" (visible) อีกครั้ง ให้ซิงค์ทันที
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      setSyncStatus('syncing','กำลังซิงค์...');
+      loadFromSheet(true);
+      if (getRetryQueue().length > 0) flushRetryQueue();
+    }
+  });
 }
 
 function switchTab(n) {
