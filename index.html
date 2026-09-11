@@ -496,6 +496,10 @@ function calcCost(p) {
   if(usd && rate) {
     el.textContent = fmtU(usd)+' × ฿'+rate+' = '+fmt(usd*rate)+' ต้นทุน';
     el.style.color = color;
+  } else if (usd && !rate) {
+    // ✅ เตือนทันทีถ้ากรอก USD แล้วแต่ยังไม่ได้ตั้งเรท (ต้นทุนจะเป็น 0)
+    el.textContent = '⚠️ ยังไม่ได้ตั้งเรท — ต้นทุนจะเป็น 0';
+    el.style.color = 'var(--red)';
   } else {
     el.textContent = rate ? 'เรท $1 = ฿'+rate : '';
     el.style.color = '';
@@ -732,6 +736,23 @@ async function addEntry() {
 
   const v = parseFloat(document.getElementById('inp-amt').value);
   if(!v||isNaN(v)||v<=0){ const el=document.getElementById('inp-amt'); el.style.color='#c0392b'; setTimeout(()=>el.style.color='',700); return; }
+
+  // ✅ FIX: กันลืมตั้งเรทต้นทุน — ถ้ากรอก USD แต่เรทยังเป็น 0
+  // ต้นทุนจะคำนวณออกมาเป็น 0 เสมอ (USD × 0 = 0) ทำให้ข้อมูลผิดโดยไม่รู้ตัว
+  const usdICheck = parseFloat(document.getElementById('inp-usd-itunes').value)||0;
+  const usdXCheck = parseFloat(document.getElementById('inp-usd-xbox').value)||0;
+  const rICheck = getRate('itunes');
+  const rXCheck = getRate('xbox');
+  if ((usdICheck > 0 && rICheck <= 0) || (usdXCheck > 0 && rXCheck <= 0)) {
+    const platformName = (usdICheck > 0 && rICheck <= 0) ? 'iTunes' : 'Xbox';
+    const confirmed = confirm(
+      `⚠️ ยังไม่ได้ตั้งเรท ${platformName} ($1 = ? บาท)\n\n` +
+      `ถ้าบันทึกตอนนี้ ต้นทุนจะคำนวณออกมาเป็น 0 บาท\n\n` +
+      `กด "ตกลง" เพื่อบันทึกต่อโดยไม่มีต้นทุน\n` +
+      `กด "ยกเลิก" เพื่อกลับไปตั้งเรทก่อน`
+    );
+    if (!confirmed) return;
+  }
 
   btn.disabled = true; // ล็อกปุ่มทันทีก่อนทำงานต่อ
 
